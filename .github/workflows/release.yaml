@@ -152,4 +152,4 @@ jobs:
           upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: ./downloads/${{ needs.build.outputs.windowsArtifact }}/${{ needs.build.outputs.windowsArtifact }}
           asset_name: ${{ needs.build.outputs.windowsArtifact }}
-          asset_content_type: ${{ matrix.MIME }}
+          asset_content_type: application/x-zip-compressed

@@ -1,0 +1,153 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - v*.*.*
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    outputs:
+      linuxArtifact: ${{ steps.build_linux.outputs.file_name_lin }}
+      windowsArtifact: ${{ steps.build_windows.outputs.file_name_win }}
+      version: ${{ steps.get_version.outputs.version }}
+
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [windows-latest]
+        include:
+          - os: windows-latest
+            TARGET: x86_64-pc-windows-msvc
+            EXTENSION: exe
+            MIME: application/vnd.microsoft.portable-executable
+        rust:
+          - stable
+    steps:
+      - uses: actions/checkout@v2
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Get Version
+        id: get_version
+        uses: battila7/get-version-action@v2.2.1
+
+      - name: Build TWPatcher (Windows)
+        id: build_windows
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          echo "file_name_win=twpatcher-${{ steps.get_version.outputs.version }}-${{ matrix.TARGET }}.${{ matrix.EXTENSION }}" >> $env:GITHUB_OUTPUT
+          cargo build --release
+
+      - name: Upload build artifact (Windows)
+        id: upload-release-asset-windows
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v3
+        with:
+          name: twpatcher-${{ steps.get_version.outputs.version }}-${{ matrix.TARGET }}.${{ matrix.EXTENSION }}
+          path: ./target/release/twpatcher.exe
+
+  create_release:
+    name: Create Release
+
+    needs:
+      - build
+
+    runs-on: ubuntu-latest
+
+    outputs:
+
+      # Concatenated because it's either one or the other.
+      upload_url: ${{ steps.create_release_beta.outputs.upload_url }}${{ steps.create_release_stable.outputs.upload_url }}
+      is_beta: ${{ steps.check_version_format_bash.outputs.is_beta }}
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Get Changelog Entry
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          path: ./CHANGELOG.md
+
+      - name: Check Version Format in Tag
+        id: check_version_format
+        uses: nowsprinting/check-version-format-action@v3.2.4
+
+      - name: Check the release type
+        id: check_version_format_bash
+        shell: bash
+        run: |
+          if [[ ${{ steps.check_version_format.outputs.patch }} -gt 98 ]]; then
+            echo "is_beta=1" >> $GITHUB_OUTPUT
+          else
+            echo "is_beta=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release (beta)
+        id: create_release_beta
+        if: steps.check_version_format_bash.outputs.is_beta == 1
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release beta ${{ github.ref }}
+          body: ${{ steps.changelog_reader.outputs.changes }}
+          draft: true
+          prerelease: true
+
+      - name: Create Release (stable)
+        id: create_release_stable
+        if: steps.check_version_format_bash.outputs.is_beta == 0
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            [![become_a_patron_button](https://user-images.githubusercontent.com/15714929/40394531-2130b9ce-5e24-11e8-91a2-bbf8e6e75d21.png)][Patreon]
+
+            ${{ steps.changelog_reader.outputs.changes }}
+
+
+            [Patreon]: https://www.patreon.com/RPFM
+          draft: true
+          prerelease: false
+
+  upload_release_assets:
+    name: Upload Release Assets
+
+    needs:
+      - build
+      - create_release
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: ./downloads
+
+      - name: List downloads
+        run: |
+          ls -lR downloads
+
+      - name: Upload Release Asset (Windows)
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
+          asset_path: ./downloads/${{ needs.build.outputs.windowsArtifact }}/${{ needs.build.outputs.windowsArtifact }}
+          asset_name: ${{ needs.build.outputs.windowsArtifact }}
+          asset_content_type: ${{ matrix.MIME }}

@@ -6,10 +6,10 @@ and this project doesn't adhere to [Semantic Versioning](https://semver.org/spec
 
 If you're looking for the changes included in the latest beta (against the latest stable version), check the unreleased section.
 
-## [1.0.0]
+## [0.9.0]
 ### Changed
 - Initial Release
 
-[Unreleased]: https://github.com/Frodo45127/twpatcher/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/Frodo45127/twpatcher/tree/v1.0.0
+[Unreleased]: https://github.com/Frodo45127/twpatcher/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/Frodo45127/twpatcher/tree/v0.9.0
 

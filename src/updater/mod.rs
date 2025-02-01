@@ -20,6 +20,7 @@ use std::fs::{DirBuilder, File};
 
 use rpfm_lib::utils::files_from_subdir;
 
+const UPDATE_EXTENSION: &str = "zip";
 const REPO_OWNER: &str = "Frodo45127";
 const REPO_NAME: &str = "twpatcher";
 
@@ -88,12 +89,26 @@ pub fn cli_updates_download() -> Result<()> {
         Download::from_url(&asset.download_url)
             .set_header(reqwest::header::ACCEPT, "application/octet-stream".parse().unwrap())
             .download_to(&tmp_zip)?;
+
+        // self_update extractor doesn't work. It fails on every-single-test I did. So we use another one.
+        let tmp_zip = File::open(&tmp_zip_path)?;
+        zip_extract::extract(tmp_zip, tmp_dir.path(), true).map_err(|_| anyhow!("There was an error while extracting the update. This means either I uploaded a broken file, or your download was incomplete. In any case, no changes have been done so… try again later."))?;
     }
 
     let mut dest_base_path = current_exe()?;
     dest_base_path.pop();
 
     for updated_file in &files_from_subdir(tmp_dir.path(), true)? {
+
+        // Ignore the downloaded ZIP.
+        if let Some(extension) = updated_file.extension() {
+            if let Some(extension) = extension.to_str() {
+                if extension == UPDATE_EXTENSION {
+                    continue;
+                }
+            }
+        }
+
         let mut tmp_file = updated_file.to_path_buf();
         tmp_file.set_file_name(&format!("{}_replacement_tmp", updated_file.file_name().unwrap().to_str().unwrap()));
 

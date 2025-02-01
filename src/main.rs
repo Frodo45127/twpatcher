@@ -17,7 +17,9 @@
 )]
 
 use clap::Parser;
+use lazy_static::lazy_static;
 
+use std::fs::{read_dir, remove_dir_all};
 use std::path::PathBuf;
 use std::process::exit;
 
@@ -35,6 +37,18 @@ mod games;
 mod updater;
 mod utils;
 
+lazy_static!{
+
+    #[derive(Debug)]
+    pub static ref PROGRAM_PATH: PathBuf = if cfg!(debug_assertions) {
+        std::env::current_dir().unwrap()
+    } else {
+        let mut path = std::env::current_exe().unwrap();
+        path.pop();
+        path
+    };
+}
+
 /// Guess you know what this function does....
 fn main() {
 
@@ -45,6 +59,23 @@ fn main() {
 
     // Parse the entire cli command.
     let cli = Cli::parse();
+
+    // Clean up folders from previous updates, if they exist. Windows-only.
+    //
+    // Done here because that way we cover executions without UI.
+    #[cfg(target_os = "windows")] {
+        if !cfg!(debug_assertions) {
+            if let Ok(folders) = read_dir(&*PROGRAM_PATH) {
+                for folder in folders.flatten() {
+                    let folder_path = folder.path();
+                    if folder_path.is_dir() && folder_path.file_name().unwrap().to_string_lossy().starts_with("update") {
+                        let _ = remove_dir_all(&folder_path);
+                    }
+                }
+                info!("Update folders cleared.");
+            }
+        }
+    }
 
     // Perform an update check before doing anything else.
     if !cli.skip_updates_check {

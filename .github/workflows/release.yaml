@@ -24,8 +24,8 @@ jobs:
         include:
           - os: windows-latest
             TARGET: x86_64-pc-windows-msvc
-            EXTENSION: exe
-            MIME: application/vnd.microsoft.portable-executable
+            EXTENSION: zip
+            MIME: application/x-zip-compressed
         rust:
           - stable
     steps:

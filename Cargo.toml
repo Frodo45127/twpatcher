@@ -27,11 +27,13 @@ clap = { version = "^4", features = ["derive", "wrap_help"] }
 
 # Config dependencies.
 directories = "^6.0"
+lazy_static = "^1.4"
 
 # Autoupdate support.
 self_update = { version = "^0.42" }
 tempfile = "^3.8"
 reqwest = "^0.12"
+zip-extract = "^0.2"
 
 # Support for open files in a native way.
 open = "^5"

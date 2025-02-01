@@ -81,8 +81,8 @@ fn main() {
     if !cli.skip_updates_check {
         info!("Update Checks enabled. Checking if there are updates available.");
 
-        if let Ok(response) = cli_updates_check() {
-            match response {
+        match cli_updates_check() {
+            Ok(response) => match response {
                 APIResponse::NewBetaUpdate(update) |
                 APIResponse::NewStableUpdate(update) |
                 APIResponse::NewUpdateHotfix(update) => {
@@ -95,6 +95,11 @@ fn main() {
                 }
                 APIResponse::NoUpdate => info!("- No new updates available."),
                 APIResponse::UnknownVersion => info!("- Unknown Version returned from Update Check."),
+            }
+
+            Err(error) => {
+                error!("- Update Checks failed due to: {}.", error);
+
             }
         }
     }

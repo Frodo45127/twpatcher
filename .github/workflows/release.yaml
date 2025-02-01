@@ -44,7 +44,7 @@ jobs:
           echo "file_name_win=twpatcher-${{ steps.get_version.outputs.version }}-${{ matrix.TARGET }}.${{ matrix.EXTENSION }}" >> $env:GITHUB_OUTPUT
           cargo build --release
 
-          7z a runcher-${{ steps.get_version.outputs.version }}-${{ matrix.TARGET }}.${{ matrix.EXTENSION }} .\target\release\twpatcher.exe .\CHANGELOG.md .\LICENSE
+          7z a twpatcher-${{ steps.get_version.outputs.version }}-${{ matrix.TARGET }}.${{ matrix.EXTENSION }} .\target\release\twpatcher.exe .\CHANGELOG.md .\LICENSE
 
       - name: Upload build artifact (Windows)
         id: upload-release-asset-windows

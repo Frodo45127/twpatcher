@@ -1,11 +1,11 @@
 //---------------------------------------------------------------------------//
-// Copyright (c) 2017-2024 Ismael Gutiérrez González. All rights reserved.
+// Copyright (c) 2025-2025 Ismael Gutiérrez González. All rights reserved.
 //
-// This file is part of the Rusted Launcher (Runcher) project,
-// which can be found here: https://github.com/Frodo45127/rpfm.
+// This file is part of the Total War Patcher (TWPatcher) project,
+// which can be found here: https://github.com/Frodo45127/twpatcher.
 //
 // This file is licensed under the MIT license, which can be found here:
-// https://github.com/Frodo45127/rpfm/blob/master/LICENSE.
+// https://github.com/Frodo45127/twpatcher/blob/master/LICENSE.
 //---------------------------------------------------------------------------//
 
 //! This module contains the input and command definitions for the tool.
@@ -25,6 +25,10 @@ pub(crate) struct Cli {
     /// Make output more detailed.
     #[arg(short, long)]
     pub verbose: bool,
+
+    /// Makes TWPatcher skip the updates check done at the start.
+    #[arg(short, long)]
+    pub skip_updates_check: bool,
 
     /// Game we are using this tool for.
     #[arg(short, long, value_name = "GAME", value_parser = PossibleValuesParser::new(SupportedGames::default().game_keys_sorted().to_vec()))]
@@ -49,7 +53,7 @@ pub(crate) struct Cli {
     pub enable_logging: bool,
 
     /// Skip all the intro videos and start the game straight to main menu.
-    #[arg(short, long)]
+    #[arg(short = 'i', long)]
     pub skip_intro_videos: bool,
 
     /// Remove the trait limit for characters in Warhammer 3.

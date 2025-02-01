@@ -1,11 +1,11 @@
 //---------------------------------------------------------------------------//
-// Copyright (c) 2017-2024 Ismael Gutiérrez González. All rights reserved.
+// Copyright (c) 2025-2025 Ismael Gutiérrez González. All rights reserved.
 //
-// This file is part of the Rusted Launcher (Runcher) project,
-// which can be found here: https://github.com/Frodo45127/rpfm.
+// This file is part of the Total War Patcher (TWPatcher) project,
+// which can be found here: https://github.com/Frodo45127/twpatcher.
 //
 // This file is licensed under the MIT license, which can be found here:
-// https://github.com/Frodo45127/rpfm/blob/master/LICENSE.
+// https://github.com/Frodo45127/twpatcher/blob/master/LICENSE.
 //---------------------------------------------------------------------------//
 
 //! This is a small CLI tool to patch Total War load orders with custom patches.
@@ -27,10 +27,12 @@ use rpfm_lib::schema::*;
 
 use crate::app::Cli;
 use crate::games::*;
+use crate::updater::*;
 use crate::utils::*;
 
 mod app;
 mod games;
+mod updater;
 mod utils;
 
 /// Guess you know what this function does....
@@ -43,6 +45,28 @@ fn main() {
 
     // Parse the entire cli command.
     let cli = Cli::parse();
+
+    // Perform an update check before doing anything else.
+    if !cli.skip_updates_check {
+        info!("Update Checks enabled. Checking if there are updates available.");
+
+        if let Ok(response) = cli_updates_check() {
+            match response {
+                APIResponse::NewBetaUpdate(update) |
+                APIResponse::NewStableUpdate(update) |
+                APIResponse::NewUpdateHotfix(update) => {
+                    info!("- New update available: {}. Downlaoding and installing update...", update);
+                    if let Err(error) = cli_updates_download() {
+                        error!("- Error when downloading/installing the update: {}", error);
+                    } else {
+                        info!("- Update downloaded and installed. Restart the program to use it.");
+                    }
+                }
+                APIResponse::NoUpdate => info!("- No new updates available."),
+                APIResponse::UnknownVersion => info!("- Unknown Version returned from Update Check."),
+            }
+        }
+    }
 
     let game = match SupportedGames::default().game(&cli.game).cloned() {
         Some(game) => game,

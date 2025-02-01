@@ -27,3 +27,14 @@ clap = { version = "^4", features = ["derive", "wrap_help"] }
 
 # Config dependencies.
 directories = "^6.0"
+
+# Autoupdate support.
+self_update = { version = "^0.42" }
+tempfile = "^3.8"
+reqwest = "^0.12"
+
+# Support for open files in a native way.
+open = "^5"
+
+# Better iterator support.
+itertools = "^0.14"

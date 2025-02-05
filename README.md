@@ -1,8 +1,8 @@
 # Total War Patcher (TWPatcher)
 
-Redistributable Load Order Patcher for all Total War games since Empire Total War. 
+**Redistributable Load Order Patcher** for all Total War games since Empire Total War. 
 
-Basically, it generates a pack with custom patches for your specific load order, such as the classic "Skip Intro" and the revolutionary "make mods actually show text properly if the game is not in english" that you usually need the UPC for. And it can make translation packs obsolete, if enough people colaborate providing translations
+Basically, it generates a pack with custom patches for your specific load order, such as the classic **Skip Intro** and the revolutionary **make mods actually show text properly if the game is not in english** that you usually need the UPC for.
 
 Supports only Steam-Installed games and Windows.
 

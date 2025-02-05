@@ -38,6 +38,10 @@ To use it, open a CLI wherever you have the *twpatcher.exe* file (Shift+Right-Cl
 
 - **Unit Multiplier**: multiplies all unit sizes by the value you provide. In case of single entities, it multiplies their health instead. It also takes care of multiplying certain parameters that scale with difficulty, like tower and magic damage, to try to not alter the balance you had in the game. Supported only in: Warhammer 3, Three Kingdoms.
 
+# Redistribution
+
+For modders which want to use this patcher as part of their custom mod managers or their custom launchers for their mods, you are free to redistribute this patcher with your mod/mod manager. Just remember to pass -s to the patcher so it doesn't download new updates automatically, because while I'll try to keep it backward-compatible, I don't guarantee an update may break something.
+
 # Uninstall
 
 To remove the program, simply delete the exe. To remove the generated patch, go to data, and delete the created Pack.

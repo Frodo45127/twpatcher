@@ -139,6 +139,9 @@ pub fn prepare_launch_options(cli: &Cli,
     // Trait limit removal.
     prepare_trait_limit_removal(cli, &game, reserved_pack, vanilla_pack, modded_pack, schema)?;
 
+    // Siege Attacker removal.
+    prepare_siege_attacker_removal(cli, &game, reserved_pack, vanilla_pack, modded_pack, schema)?;
+
     // Translations.
     prepare_translations(cli, &game, reserved_pack, load_order, game_path)?;
 
@@ -206,6 +209,30 @@ pub fn prepare_trait_limit_removal(cli: &Cli, game: &GameInfo, reserved_pack: &m
         match game.key() {
             KEY_PHARAOH | KEY_PHARAOH_DYNASTIES => Ok(()),
             KEY_WARHAMMER_3 => warhammer_3::prepare_trait_limit_removal(game, reserved_pack, vanilla_pack, modded_pack, schema),
+            KEY_TROY |
+            KEY_THREE_KINGDOMS |
+            KEY_WARHAMMER_2 |
+            KEY_WARHAMMER |
+            KEY_THRONES_OF_BRITANNIA |
+            KEY_ATTILA |
+            KEY_ROME_2 |
+            KEY_SHOGUN_2 |
+            KEY_NAPOLEON |
+            KEY_EMPIRE => Ok(()),
+            _ => Ok(())
+        }
+    } else {
+        Ok(())
+    }
+}
+
+pub fn prepare_siege_attacker_removal(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack, vanilla_pack: &mut Pack, modded_pack: &mut Pack, schema: &Schema) -> Result<()> {
+    info!("- Remove Siege Attacker attribute: {}.", cli.remove_siege_attacker);
+
+    if cli.remove_siege_attacker {
+        match game.key() {
+            KEY_PHARAOH | KEY_PHARAOH_DYNASTIES => Ok(()),
+            KEY_WARHAMMER_3 => warhammer_3::prepare_siege_attacker_removal(game, reserved_pack, vanilla_pack, modded_pack, schema),
             KEY_TROY |
             KEY_THREE_KINGDOMS |
             KEY_WARHAMMER_2 |

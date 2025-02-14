@@ -149,6 +149,62 @@ pub fn prepare_trait_limit_removal(game: &GameInfo, reserved_pack: &mut Pack, va
     Ok(())
 }
 
+pub fn prepare_siege_attacker_removal(game: &GameInfo, reserved_pack: &mut Pack, vanilla_pack: &mut Pack, modded_pack: &mut Pack, schema: &Schema) -> Result<()> {
+    let mut main_units = vanilla_pack.files_by_path(&ContainerPath::Folder("db/main_units_tables/".to_string()), true)
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>();
+
+    // Give the daracores extreme low priority so they don't overwrite other mods tables.
+    main_units.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
+
+    main_units.append(&mut modded_pack.files_by_path(&ContainerPath::Folder("db/main_units_tables/".to_string()), true)
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>());
+
+    // Just in case another step of the launch process adds this table.
+    main_units.append(&mut reserved_pack.files_by_path(&ContainerPath::Folder("db/main_units_tables/".to_string()), true)
+        .into_iter()
+        .cloned()
+        .collect::<Vec<_>>());
+
+    // Sort them so file processing is done in the correct order.
+    main_units.sort_by_key(|rfile| rfile.path_in_container_raw().to_string());
+
+    let enc_extra_data = Some(EncodeableExtraData::new_from_game_info(game));
+    let mut dec_extra_data = DecodeableExtraData::default();
+    dec_extra_data.set_schema(Some(schema));
+    let dec_extra_data = Some(dec_extra_data);
+
+    for table in &mut main_units {
+        if let Some(RFileDecoded::DB(mut data)) = table.decode(&dec_extra_data, false, true)? {
+            let caste_column = data.definition().column_position_by_name("caste");
+            let can_siege_column = data.definition().column_position_by_name("can_siege");
+            if let Some(caste_column) = caste_column {
+                if let Some(can_siege_column) = can_siege_column {
+                    for row in data.data_mut() {
+
+                        if let Some(DecodedData::StringU8(caste)) = row.get(caste_column).cloned() {
+                            if caste != "warmachine" {
+                                if let Some(DecodedData::Boolean(ref mut value)) = row.get_mut(can_siege_column) {
+                                    *value = false;
+                                }
+                            }
+                        }
+                    }
+
+                    table.set_decoded(RFileDecoded::DB(data))?;
+                    table.encode(&enc_extra_data, false, true, false)?;
+                    reserved_pack.insert(table.clone())?;
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub fn prepare_unit_multiplier(game: &GameInfo, reserved_pack: &mut Pack, vanilla_pack: &mut Pack, modded_pack: &mut Pack, schema: &Schema, unit_multiplier: f64) -> Result<()> {
 
     let mut kv_rules = vanilla_pack.files_by_path(&ContainerPath::Folder("db/_kv_rules_tables/".to_string()), true)

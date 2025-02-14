@@ -31,6 +31,8 @@ To use it, open a CLI wherever you have the *twpatcher.exe* file (Shift+Right-Cl
 
 - **Remove Trait Limit**: removes the trait limit of characters in Warhammer 3. May cause your saves to be a bit bigger though.
 
+- **Remove Siege Attacker**: removes the "Siege Attacker" attribute from everything but Warmachines in Warhammer 3. This should reduce a lot the instances of the AI attacking walled settlements without artillery or siege equipment, and overall make walled settlements... actually do something different than unwalled settlements.
+
 - **Translation Fixer**: to be honest, I'm not sure how to call this one, but was one of the main reasons I started this. You tell it the language your game is, and it'll:
     - Scan your mods, and **fix all the missing text issues** that have plagued all games since Empire up to Thrones for ages. And yes, this kinda makes UPC obsolete.
     - Cleans your mods' texts, so a mod adding two units doesn't turn half your game into english. If they have text lines identical to the ones in the vanilla english loc files, they're replaced with their equivalent in your language.

@@ -60,6 +60,12 @@ pub(crate) struct Cli {
     #[arg(short, long)]
     pub remove_trait_limit: bool,
 
+    /// Remove the "Siege Attacker" attribute from everything but artillery units.
+    ///
+    /// Supported only in: Warhammer 3.
+    #[arg(short = 'a', long)]
+    pub remove_siege_attacker: bool,
+
     /// Language for which TWPatcher will apply translations and patch locs for.
     ///
     /// Make sure to use this if you have the "no text from mods and my game is not in english" issue.

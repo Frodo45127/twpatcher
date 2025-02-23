@@ -9,19 +9,22 @@
 //---------------------------------------------------------------------------//
 
 use anyhow::Result;
+use r2d2::Pool;
+use r2d2_sqlite::SqliteConnectionManager;
 use rayon::prelude::*;
-use rpfm_lib::integrations::log::info;
 
 use std::collections::{HashMap, HashSet};
+use std::fs::File;
+use std::io::{BufReader, Read};
 use std::path::{PathBuf, Path};
 
 use rpfm_extensions::dependencies::Dependencies;
 use rpfm_extensions::optimizer::Optimizable;
 use rpfm_extensions::translator::*;
 
-use rpfm_lib::files::{Container, FileType, loc::Loc, pack::Pack, RFile, RFileDecoded, table::DecodedData};
+use rpfm_lib::files::{Container, DecodeableExtraData, EncodeableExtraData, FileType, loc::Loc, pack::Pack, RFile, RFileDecoded, table::DecodedData};
 use rpfm_lib::games::{*, supported_games::*};
-use rpfm_lib::integrations::git::GitIntegration;
+use rpfm_lib::integrations::{git::GitIntegration, log::{error, info, warn}};
 use rpfm_lib::schema::Schema;
 
 use crate::app::Cli;
@@ -103,6 +106,8 @@ pub const TRANSLATIONS_BRANCH: &str = "master";
 pub const VANILLA_LOC_NAME: &str = "vanilla_english.tsv";
 pub const VANILLA_FIXES_NAME: &str = "vanilla_fixes_";
 
+const DB_FILE: &str = "sql.db3";
+
 mod attila;
 mod empire;
 mod napoleon;
@@ -150,6 +155,135 @@ pub fn prepare_launch_options(cli: &Cli,
 
     // Universal rebalancer.
     prepare_universal_rebalancer(cli, &game, reserved_pack, vanilla_pack, modded_pack, schema, load_order)?;
+
+    // SQL Queries.
+    prepare_sql_queries(cli, &game, reserved_pack, vanilla_pack, modded_pack, schema)?;
+
+    Ok(())
+}
+
+pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack, vanilla_pack: &mut Pack, modded_pack: &mut Pack, schema: &Schema) -> Result<()> {
+    info!("- Apply SQL Scripts: {}.", cli.sql_script.is_some());
+
+    if let Some(ref scripts) = cli.sql_script {
+        info!("  - SQL Scripts to apply:");
+        for script in scripts {
+            info!("    - {}", script);
+        }
+
+        let mut tables = vanilla_pack.files_by_type(&[FileType::DB])
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+
+        // Give the daracores extreme low priority so they don't overwrite other mods tables.
+        tables.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
+
+        tables.append(&mut modded_pack.files_by_type(&[FileType::DB])
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>());
+
+        // Just in case another step of the launch process adds this table.
+        tables.append(&mut reserved_pack.files_by_type(&[FileType::DB])
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>());
+
+        // Sort them so file processing is done in the correct order.
+        tables.sort_by_key(|rfile| rfile.path_in_container_raw().to_string());
+
+        info!("  - Removing old db (if exists) and creating it anew.");
+
+        // If the db exists from a previous run, delete it and create it anew.
+        // TODO: do this by mass-dropping tables instead, so the db can be open in other programs while doing it.
+        if PathBuf::from(DB_FILE).is_file() {
+            std::fs::remove_file(&PathBuf::from(DB_FILE))?;
+        }
+
+        let manager = SqliteConnectionManager::file(DB_FILE);
+        let pool = Pool::new(manager)?;
+
+        // Then, back all tables to a sqlite database.
+        let enc_extra_data = Some(EncodeableExtraData::new_from_game_info(game));
+        let mut dec_extra_data = DecodeableExtraData::default();
+        dec_extra_data.set_schema(Some(schema));
+        let dec_extra_data = Some(dec_extra_data);
+
+        info!("  - Building SQL databse.");
+
+        for table in &mut tables {
+            if let Ok(Some(RFileDecoded::DB(data))) = table.decode(&dec_extra_data, false, true) {
+                if let Err(error) = data.table().db_to_sql(&pool) {
+                    warn!("  - Table {}_v{} failed to be populated in the database, with the following error: {}.", data.table_name(), data.definition().version(), error);
+                }
+            }
+        }
+
+        info!("  - Executing scripts:");
+
+        // Execute all the scripts in order.
+        let mut edited_tables = vec![];
+        for script in scripts {
+
+            info!("    - Executing script: {}", script);
+
+            let script_path = PathBuf::from(script);
+
+            let mut file = BufReader::new(File::open(script_path)?);
+            let mut data = String::new();
+            file.read_to_string(&mut data)?;
+
+            // Get the array of tables to import first. It must always exist at the start of the file, after the random comment.
+            let start_pos = data.find("-- Tables to import:");
+            let end_pos = data.find("-- End of tables to import.");
+
+            if let Some(start_pos) = start_pos {
+                if let Some(end_pos) = end_pos {
+                    if start_pos < end_pos {
+                        let tables = data[start_pos + 20..end_pos].replace("-- ", "").replace("\r\n", "\n");
+                        let tables_split = tables.split("\n")
+                            .map(|x| x.trim())
+                            .filter(|x| !x.is_empty())
+                            .map(|x| format!("db/{}_tables/", x))
+                            .collect::<Vec<_>>();
+                        edited_tables.extend_from_slice(&tables_split);
+                    } else {
+                        error!("  - Failed to process sql script {}, due to bad formatting. Make sure the line '-- End of tables to import.' is AFTER '-- Tables to import:', with lines with the format '-- land_units' (the name of the table to import, without the _tables ending, and one table per line) in between.", script);
+                    }
+                } else {
+                    error!("  - Failed to process sql script {}, due to bad formatting. Make sure the line '-- End of tables to import.' (without the commas) it's somewhere in the file.", script);
+                }
+            } else {
+                error!("  - Failed to process sql script {}, due to bad formatting. Make sure the line '-- Tables to import:' (without the commas) it's somewhere in the file.", script);
+            }
+
+            if let Err(error) = pool.get()?.execute_batch(&data) {
+                error!("  - SQL script failed to execute with the following error: {}.", error);
+
+            }
+        }
+
+        info!("  - Rebuilding in-memory tables.");
+
+        // Retrieve the data of the tables specified in the scripts and add them to the reserved pack.
+        for table in &mut tables {
+            for edited_path in &edited_tables {
+
+                if table.path_in_container_raw().starts_with(edited_path) {
+                    if let Ok(RFileDecoded::DB(ref mut data)) = table.decoded_mut() {
+                        data.sql_to_db(&pool)?;
+                    }
+
+                    table.encode(&enc_extra_data, false, true, false)?;
+                    reserved_pack.insert(table.clone())?;
+                    break;
+                }
+            }
+        }
+
+        info!("  - SQL scripts processed.");
+    }
 
     Ok(())
 }

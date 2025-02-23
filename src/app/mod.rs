@@ -94,4 +94,10 @@ pub(crate) struct Cli {
     /// Supported only in: Warhammer 3.
     #[arg(short, long, value_name = "BASE_MOD")]
     pub universal_rebalancer: Option<String>,
+
+    /// EXPERIMENTAL
+    ///
+    /// It tries to execute the provided sql scripts (yes, admits multiple ones) over the load order.
+    #[arg(long, value_name = "SCRIPT_PATHS")]
+    pub sql_script: Option<Vec<String>>,
 }

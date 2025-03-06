@@ -100,4 +100,8 @@ pub(crate) struct Cli {
     /// It tries to execute the provided sql scripts (yes, admits multiple ones) over the load order.
     #[arg(long, value_name = "SCRIPT_PATHS")]
     pub sql_script: Option<Vec<String>>,
+
+    /// It enables the dev-restricted parts of the UI. Note that the dev-restricted buttons may require things not shipped with the game, and will not work.
+    #[arg(short = 'd', long)]
+    pub enable_dev_ui: bool,
 }

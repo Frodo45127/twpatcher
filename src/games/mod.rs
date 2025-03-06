@@ -22,7 +22,7 @@ use rpfm_extensions::dependencies::Dependencies;
 use rpfm_extensions::optimizer::Optimizable;
 use rpfm_extensions::translator::*;
 
-use rpfm_lib::files::{Container, DecodeableExtraData, EncodeableExtraData, FileType, loc::Loc, pack::Pack, RFile, RFileDecoded, table::DecodedData};
+use rpfm_lib::files::{Container, ContainerPath, DecodeableExtraData, EncodeableExtraData, FileType, loc::Loc, pack::Pack, RFile, RFileDecoded, table::DecodedData};
 use rpfm_lib::games::{*, supported_games::*};
 use rpfm_lib::integrations::{git::GitIntegration, log::{error, info, warn}};
 use rpfm_lib::schema::Schema;
@@ -132,7 +132,7 @@ pub fn prepare_launch_options(cli: &Cli,
     modded_pack: &mut Pack,
     schema: &Schema,
     load_order: &[PathBuf],
-    game_path: &Path, /*data_path: &Path, folder_list: &mut String*/
+    game_path: &Path
 ) -> Result<()> {
 
     // Skip videos.
@@ -158,6 +158,66 @@ pub fn prepare_launch_options(cli: &Cli,
 
     // SQL Queries.
     prepare_sql_queries(cli, &game, reserved_pack, vanilla_pack, modded_pack, schema)?;
+
+    // Enable dev ui in all ui files.
+    prepare_dev_ui(cli, &game, reserved_pack, vanilla_pack, modded_pack)?;
+
+    Ok(())
+}
+
+
+pub fn prepare_dev_ui(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack, vanilla_pack: &mut Pack, modded_pack: &mut Pack) -> Result<()> {
+    info!("- Enable Dev UI: {}.", cli.enable_dev_ui);
+
+    if cli.enable_dev_ui {
+
+        let mut files = vanilla_pack.files_by_type_and_paths(&[FileType::Text], &[ContainerPath::Folder("ui/".to_owned())], true)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+
+        files.append(&mut modded_pack.files_by_type_and_paths(&[FileType::Text], &[ContainerPath::Folder("ui/".to_owned())], true)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>());
+
+        files.append(&mut reserved_pack.files_by_type_and_paths(&[FileType::Text], &[ContainerPath::Folder("ui/".to_owned())], true)
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>());
+
+        // Sort them so file processing is done in the correct order.
+        files.sort_by_key(|rfile| rfile.path_in_container_raw().to_string());
+
+        let enc_extra_data = Some(EncodeableExtraData::new_from_game_info(game));
+        let dec_extra_data = Some(DecodeableExtraData::default());
+
+        for file in &mut files {
+            if let Ok(Some(RFileDecoded::Text(mut data))) = file.decode(&dec_extra_data, false, true) {
+                if data.contents().contains("is_dev_only=\"true\"") {
+                    let mut new_data = data.contents().replace("is_dev_only=\"true\"", "is_dev_only=\"false\"");
+
+                    // Make the items visible. The ui files use both, is_visible and visible.
+                    let mut pos = 0;
+                    while let Some(start_pos) = new_data[pos..].find("is_dev_only") {
+                        pos += start_pos;
+
+                        let new_data_pre = new_data[..pos].to_owned();
+                        let new_data_post = new_data[pos..].replacen("visible=\"false\"", "visible=\"true\"", 1);
+                        new_data = new_data_pre + &new_data_post;
+
+                        // Add one to skip to the next match.
+                        pos += 1;
+                    }
+                    data.set_contents(new_data);
+
+                    file.set_decoded(RFileDecoded::Text(data))?;
+                    file.encode(&enc_extra_data, false, true, false)?;
+                    reserved_pack.insert(file.clone())?;
+                }
+            }
+        }
+    }
 
     Ok(())
 }

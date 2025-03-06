@@ -136,31 +136,31 @@ pub fn prepare_launch_options(cli: &Cli,
 ) -> Result<()> {
 
     // Skip videos.
-    prepare_skip_intro_videos(cli, &game, reserved_pack, vanilla_pack, modded_pack, schema)?;
+    prepare_skip_intro_videos(cli, game, reserved_pack, vanilla_pack, modded_pack, schema)?;
 
     // Logging.
-    prepare_script_logging(cli, &game, reserved_pack)?;
+    prepare_script_logging(cli, game, reserved_pack)?;
 
     // Trait limit removal.
-    prepare_trait_limit_removal(cli, &game, reserved_pack, vanilla_pack, modded_pack, schema)?;
+    prepare_trait_limit_removal(cli, game, reserved_pack, vanilla_pack, modded_pack, schema)?;
 
     // Siege Attacker removal.
-    prepare_siege_attacker_removal(cli, &game, reserved_pack, vanilla_pack, modded_pack, schema)?;
+    prepare_siege_attacker_removal(cli, game, reserved_pack, vanilla_pack, modded_pack, schema)?;
 
     // Translations.
-    prepare_translations(cli, &game, reserved_pack, load_order, game_path)?;
+    prepare_translations(cli, game, reserved_pack, load_order, game_path)?;
 
     // Unit multiplier.
-    prepare_unit_multiplier(cli, &game, reserved_pack, vanilla_pack, modded_pack, schema)?;
+    prepare_unit_multiplier(cli, game, reserved_pack, vanilla_pack, modded_pack, schema)?;
 
     // Universal rebalancer.
-    prepare_universal_rebalancer(cli, &game, reserved_pack, vanilla_pack, modded_pack, schema, load_order)?;
+    prepare_universal_rebalancer(cli, game, reserved_pack, vanilla_pack, modded_pack, schema, load_order)?;
 
     // SQL Queries.
-    prepare_sql_queries(cli, &game, reserved_pack, vanilla_pack, modded_pack, schema)?;
+    prepare_sql_queries(cli, game, reserved_pack, vanilla_pack, modded_pack, schema)?;
 
     // Enable dev ui in all ui files.
-    prepare_dev_ui(cli, &game, reserved_pack, vanilla_pack, modded_pack)?;
+    prepare_dev_ui(cli, game, reserved_pack, vanilla_pack, modded_pack)?;
 
     Ok(())
 }
@@ -237,7 +237,7 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
             .collect::<Vec<_>>();
 
         // Give the daracores extreme low priority so they don't overwrite other mods tables.
-        tables.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
+        tables.iter_mut().for_each(rename_file_name_to_low_priority);
 
         tables.append(&mut modded_pack.files_by_type(&[FileType::DB])
             .into_iter()
@@ -258,7 +258,7 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
         // If the db exists from a previous run, delete it and create it anew.
         // TODO: do this by mass-dropping tables instead, so the db can be open in other programs while doing it.
         if PathBuf::from(DB_FILE).is_file() {
-            std::fs::remove_file(&PathBuf::from(DB_FILE))?;
+            std::fs::remove_file(PathBuf::from(DB_FILE))?;
         }
 
         let manager = SqliteConnectionManager::file(DB_FILE);
@@ -516,7 +516,7 @@ pub fn prepare_translations(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack
                 if let Some(ref pack_name) = pack_path.file_name().map(|name| name.to_string_lossy().to_string()) {
                     let mut translation_found = false;
 
-                    if let Ok(tr) = PackTranslation::load(&paths, pack_name, game.key(), &language) {
+                    if let Ok(tr) = PackTranslation::load(&paths, pack_name, game.key(), language) {
                         for tr in tr.translations().values() {
 
                             // Only add entries for values we actually have translated and up to date.
@@ -620,7 +620,7 @@ pub fn prepare_translations(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack
 
             // If the game uses the old multilanguage logic, we need to get the most updated version of localisation.loc from the game and append it to our loc.
             if use_old_multilanguage_logic {
-                let mut pack = Pack::read_and_merge_ca_packs(game, &game_path)?;
+                let mut pack = Pack::read_and_merge_ca_packs(game, game_path)?;
                 if let Some(vanilla_loc) = pack.file_mut(TRANSLATED_PATH_OLD, false) {
                     if let Ok(Some(RFileDecoded::Loc(mut loc))) = vanilla_loc.decode(&None, false, true) {
                         loc_data.append(loc.data_mut());
@@ -631,7 +631,7 @@ pub fn prepare_translations(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack
 
             // If the game is not using the old logic, we need to restore the optimized lines, but from the translated loc, not the english one.
             else {
-                let mut pack = Pack::read_and_merge_ca_packs(game, &game_path)?;
+                let mut pack = Pack::read_and_merge_ca_packs(game, game_path)?;
                 let mut vanilla_locs = pack.files_by_type_mut(&[FileType::Loc]);
                 let vanilla_loc_data = vanilla_locs.par_iter_mut()
                     .filter_map(|rfile| {

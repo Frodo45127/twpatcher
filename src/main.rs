@@ -19,7 +19,7 @@
 use clap::Parser;
 use lazy_static::lazy_static;
 
-use std::fs::{read_dir, remove_dir_all};
+#[cfg(target_os = "windows")]use std::fs::{read_dir, remove_dir_all};
 use std::path::PathBuf;
 use std::process::exit;
 
@@ -214,7 +214,7 @@ fn main() {
     info!("Options processed. Saving Pack");
 
     // If everything worked as expected, save the reserved pack.
-    let custom_path = cli.generated_pack_path.clone().map(|x| PathBuf::from(x));
+    let custom_path = cli.generated_pack_path.clone().map(PathBuf::from);
     if let Err(error) = save_reserved_pack(&game, &mut reserved_pack, &load_order, &data_path, custom_path) {
         error!("{}", error.to_string());
         exit(1);

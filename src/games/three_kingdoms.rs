@@ -56,11 +56,11 @@ pub fn prepare_unit_multiplier(game: &GameInfo, reserved_pack: &mut Pack, vanill
         .collect::<Vec<_>>();
 
     // Give the daracores extreme low priority so they don't overwrite other mods tables.
-    kv_key_buildings.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-    kv_rules.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-    kv_unit_ability_scaling_rules.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-    land_units.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-    land_units_templates.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
+    kv_key_buildings.iter_mut().for_each(rename_file_name_to_low_priority);
+    kv_rules.iter_mut().for_each(rename_file_name_to_low_priority);
+    kv_unit_ability_scaling_rules.iter_mut().for_each(rename_file_name_to_low_priority);
+    land_units.iter_mut().for_each(rename_file_name_to_low_priority);
+    land_units_templates.iter_mut().for_each(rename_file_name_to_low_priority);
 
     kv_key_buildings.append(&mut modded_pack.files_by_path(&ContainerPath::Folder("db/_kv_key_buildings_tables/".to_string()), true)
         .into_iter()
@@ -262,7 +262,7 @@ pub fn prepare_unit_multiplier(game: &GameInfo, reserved_pack: &mut Pack, vanill
                 if let Some(key_column) = key_column {
                     if let Some(DecodedData::StringU8(key_value)) = row.get(key_column).cloned() {
 
-                        if single_entity_units.get(&key_value).is_none() {
+                        if !single_entity_units.contains(&key_value) {
                             if let Some(column) = rank_depth_column {
                                 if let Some(DecodedData::I32(value)) = row.get_mut(column) {
                                     *value = (*value as f64 * unit_multiplier).round() as i32;

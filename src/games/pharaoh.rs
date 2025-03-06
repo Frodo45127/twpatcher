@@ -76,8 +76,8 @@ pub fn prepare_skip_intro_videos(game: &GameInfo, reserved_pack: &mut Pack, vani
         .collect::<Vec<_>>();
 
     // Give the daracores extreme low priority so they don't overwrite other mods tables.
-    videos.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-    campaign_videos.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
+    videos.iter_mut().for_each(rename_file_name_to_low_priority);
+    campaign_videos.iter_mut().for_each(rename_file_name_to_low_priority);
 
     videos.append(&mut modded_pack.files_by_path(&ContainerPath::Folder("db/videos_tables/".to_string()), true)
         .into_iter()

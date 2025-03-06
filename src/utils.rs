@@ -78,7 +78,7 @@ pub fn load_order_from_file(load_order_path: &Path, game: &GameInfo, game_path: 
     let (load_order_path, is_utf_16) = if *game.raw_db_version() >= 1 {
         (load_order_path.to_path_buf(), false)
     } else {
-        let config_path = game.config_path(&game_path).ok_or(anyhow!("Error getting the game's config path."))?;
+        let config_path = game.config_path(game_path).ok_or(anyhow!("Error getting the game's config path."))?;
         let scripts_path = config_path.join("scripts");
 
         // Empire has its own user script.
@@ -163,7 +163,7 @@ pub fn init_vanilla_pack(game: &GameInfo, game_path: &Path) -> Result<Pack> {
 
 pub fn init_modded_pack(paths: &[PathBuf]) -> Result<Pack> {
     if !paths.is_empty() {
-        Pack::read_and_merge(&paths, true, false, true).map_err(From::from)
+        Pack::read_and_merge(paths, true, false, true).map_err(From::from)
     } else {
         Ok(Pack::default())
     }
@@ -206,5 +206,5 @@ pub fn save_reserved_pack(game: &GameInfo, pack: &mut Pack, mod_paths: &[PathBuf
         pack.set_dependencies(pack_names);
     }
 
-    pack.save(Some(&temp_path), &game, &Some(encode_data)).map_err(From::from)
+    pack.save(Some(&temp_path), game, &Some(encode_data)).map_err(From::from)
 }

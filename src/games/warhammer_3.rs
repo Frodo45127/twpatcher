@@ -106,7 +106,7 @@ pub fn prepare_trait_limit_removal(game: &GameInfo, reserved_pack: &mut Pack, va
         .collect::<Vec<_>>();
 
     // Give the daracores extreme low priority so they don't overwrite other mods tables.
-    campaign_variables.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
+    campaign_variables.iter_mut().for_each(rename_file_name_to_low_priority);
 
     campaign_variables.append(&mut modded_pack.files_by_path(&ContainerPath::Folder("db/campaign_variables_tables/".to_string()), true)
         .into_iter()
@@ -134,7 +134,7 @@ pub fn prepare_trait_limit_removal(game: &GameInfo, reserved_pack: &mut Pack, va
                 if let Some(DecodedData::StringU8(key)) = row.first().cloned() {
                     if key == "max_traits" {
                         if let Some(DecodedData::F32(value)) = row.get_mut(1) {
-                            *value = 999 as f32;
+                            *value = 999_f32;
                         }
                     }
                 }
@@ -156,7 +156,7 @@ pub fn prepare_siege_attacker_removal(game: &GameInfo, reserved_pack: &mut Pack,
         .collect::<Vec<_>>();
 
     // Give the daracores extreme low priority so they don't overwrite other mods tables.
-    main_units.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
+    main_units.iter_mut().for_each(rename_file_name_to_low_priority);
 
     main_units.append(&mut modded_pack.files_by_path(&ContainerPath::Folder("db/main_units_tables/".to_string()), true)
         .into_iter()
@@ -238,12 +238,12 @@ pub fn prepare_unit_multiplier(game: &GameInfo, reserved_pack: &mut Pack, vanill
         .collect::<Vec<_>>();
 
     // Give the daracores extreme low priority so they don't overwrite other mods tables.
-    kv_rules.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-    kv_unit_ability_scaling_rules.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-    land_units.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-    main_units.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-    unit_size_global_scalings.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-    unit_stat_to_size_scaling_values.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
+    kv_rules.iter_mut().for_each(rename_file_name_to_low_priority);
+    kv_unit_ability_scaling_rules.iter_mut().for_each(rename_file_name_to_low_priority);
+    land_units.iter_mut().for_each(rename_file_name_to_low_priority);
+    main_units.iter_mut().for_each(rename_file_name_to_low_priority);
+    unit_size_global_scalings.iter_mut().for_each(rename_file_name_to_low_priority);
+    unit_stat_to_size_scaling_values.iter_mut().for_each(rename_file_name_to_low_priority);
 
     kv_rules.append(&mut modded_pack.files_by_path(&ContainerPath::Folder("db/_kv_rules_tables/".to_string()), true)
         .into_iter()
@@ -504,7 +504,7 @@ pub fn prepare_unit_multiplier(game: &GameInfo, reserved_pack: &mut Pack, vanill
                 // For engines with mounts (chariots) the calculatuion is different. We only need to increase engines, as mounts is mounts per-engine.
                 if let Some(key_column) = key_column {
                     if let Some(DecodedData::StringU8(key_value)) = row.get(key_column).cloned() {
-                        let is_single_entity = single_entity_units.get(&key_value).is_some();
+                        let is_single_entity = single_entity_units.contains(&key_value);
                         let mut is_engine = false;
 
                         // Artillery pieces, chariots and weird units.
@@ -822,8 +822,10 @@ pub fn prepare_universal_rebalancer(game: &GameInfo, reserved_pack: &mut Pack, v
                         // Only use the first entry in case of duplicates.
                         if !comparisons.contains_key(&key_value) {
 
-                            let mut cmp = UniversalRebalancerLandUnit::default();
-                            cmp.key = key_value;
+                            let mut cmp = UniversalRebalancerLandUnit {
+                                key: key_value,
+                                ..Default::default()
+                            };
 
                             if let Some(column) = category_column {
                                 if let Some(DecodedData::StringU8(value)) = row.get(column) {
@@ -1036,10 +1038,10 @@ pub fn prepare_universal_rebalancer(game: &GameInfo, reserved_pack: &mut Pack, v
             .collect::<Vec<_>>();
 
         // Give the daracores extreme low priority so they don't overwrite other mods tables.
-        main_units.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-        units_custom_battle_permissions.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-        factions.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
-        cultures_subcultures.iter_mut().for_each(|x| rename_file_name_to_low_priority(x));
+        main_units.iter_mut().for_each(rename_file_name_to_low_priority);
+        units_custom_battle_permissions.iter_mut().for_each(rename_file_name_to_low_priority);
+        factions.iter_mut().for_each(rename_file_name_to_low_priority);
+        cultures_subcultures.iter_mut().for_each(rename_file_name_to_low_priority);
 
         main_units.append(&mut modded_pack.files_by_path(&ContainerPath::Folder("db/main_units_tables/".to_string()), true)
             .into_iter()
@@ -1185,7 +1187,7 @@ pub fn prepare_universal_rebalancer(game: &GameInfo, reserved_pack: &mut Pack, v
 
         // Now we split the units in culture/category groups for balancer calculations.
         let mut cmp_tree: HashMap<String, HashMap<String, Vec<String>>> = HashMap::new();
-        for (_, cmp) in &comparisons {
+        for cmp in comparisons.values() {
 
             // Ignore units that have no vanilla counterpart for balancing calculations.
             if let Some(cul) = land_unit_to_cul.get(cmp.key()) {
@@ -1199,16 +1201,14 @@ pub fn prepare_universal_rebalancer(game: &GameInfo, reserved_pack: &mut Pack, v
                                 }
                             }
                             None => {
-                                let mut cat = vec![];
-                                cat.push(cmp.key().to_owned());
+                                let cat = vec![cmp.key().to_owned()];
                                 cats.insert(cmp.category().to_owned(), cat);
                             }
                         }
                     }
                     None => {
                         let mut cats = HashMap::new();
-                        let mut cat = vec![];
-                        cat.push(cmp.key().to_owned());
+                        let cat = vec![cmp.key().to_owned()];
                         cats.insert(cmp.category().to_owned(), cat);
                         cmp_tree.insert(cul.to_owned(), cats);
                     }
@@ -1245,7 +1245,7 @@ pub fn prepare_universal_rebalancer(game: &GameInfo, reserved_pack: &mut Pack, v
             }
         }
 
-        let mut a = averaged_categories_stats.iter().map(|(a, b)| (a, b)).collect::<Vec<_>>();
+        let mut a = averaged_categories_stats.iter().collect::<Vec<_>>();
         a.sort_by_key(|a| a.0);
 
         // And finally, go over all units outside of the base mod (and outside mods that treat it as parent), and apply the avg multipliers.
@@ -1278,8 +1278,8 @@ pub fn prepare_universal_rebalancer(game: &GameInfo, reserved_pack: &mut Pack, v
                 let cont_name = table.container_name().clone().unwrap();
                 if cont_name != base_pack.disk_file_name() &&
                     (
-                        packs_deps.get(&cont_name).is_none() ||
-                        !packs_deps.get(&cont_name).unwrap().contains(&&base_pack.disk_file_name())
+                        !packs_deps.contains_key(&cont_name) ||
+                        !packs_deps.get(&cont_name).unwrap().contains(&base_pack.disk_file_name())
                     ) {
 
                     if let Some(RFileDecoded::DB(mut data)) = table.decode(&dec_extra_data, false, true)? {
@@ -1651,6 +1651,6 @@ fn average_stat(culture: &str, category: &str, stat: &str, units: &[String], cmp
         avg_base / avg_vanilla
     };
 
-    averages.insert(culture.to_owned() + &category + stat, avg_based_one);
+    averages.insert(culture.to_owned() + category + stat, avg_based_one);
 }
 

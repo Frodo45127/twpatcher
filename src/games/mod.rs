@@ -15,7 +15,7 @@ use r2d2_sqlite::SqliteConnectionManager;
 use rayon::prelude::*;
 
 use std::collections::{HashMap, HashSet};
-use std::fs::File;
+use std::fs::{DirBuilder, File};
 use std::io::{BufReader, Read};
 use std::path::{PathBuf, Path};
 
@@ -518,6 +518,10 @@ pub fn prepare_translations(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack
 
     // TODO: Troy has a weird translation system. Check that it works, and check pharaoh too.
     if let Some(language) = &cli.translation_language {
+
+        // Make sure the translations folders exist.
+        DirBuilder::new().recursive(true).create(translations_local_path()?)?;
+        DirBuilder::new().recursive(true).create(translations_remote_path()?)?;
 
         // Download the translations. Ignore failure here, as it may fail due to network issues.
         if let Ok(local_path) = translations_remote_path() {

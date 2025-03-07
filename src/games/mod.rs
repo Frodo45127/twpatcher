@@ -256,14 +256,18 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
 
         info!("  - Removing old db (if exists) and creating it anew.");
 
-        // If the db exists from a previous run, delete it and create it anew.
-        // TODO: do this by mass-dropping tables instead, so the db can be open in other programs while doing it.
-        if PathBuf::from(DB_FILE).is_file() {
-            std::fs::remove_file(PathBuf::from(DB_FILE))?;
-        }
-
+        // Make sure the database is clean before rebuilding it.
         let manager = SqliteConnectionManager::file(DB_FILE);
         let pool = Pool::new(manager)?;
+        if let Err(error) = pool.get()?.execute_batch("
+            PRAGMA writable_schema = 1;
+            delete from sqlite_master where type in ('table', 'index', 'trigger');
+            PRAGMA writable_schema = 0;
+            VACUUM;
+            PRAGMA INTEGRITY_CHECK;
+        ") {
+            error!("  - Error reseting the database file: {}.", error);
+        }
 
         // Then, back all tables to a sqlite database.
         let enc_extra_data = Some(EncodeableExtraData::new_from_game_info(game));

@@ -9,6 +9,7 @@
 //---------------------------------------------------------------------------//
 
 use anyhow::Result;
+use itertools::Itertools;
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rayon::prelude::*;
@@ -227,8 +228,8 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
 
     if let Some(ref scripts) = cli.sql_script {
         info!("  - SQL Scripts to apply:");
-        for script in scripts {
-            info!("    - {}", script);
+        for (script, params) in scripts {
+            info!("    - Path: {}. Params: {}", script.to_string_lossy().to_string().replace("\\", "/"), params.join(","));
         }
 
         let mut tables = vanilla_pack.files_by_type(&[FileType::DB])
@@ -270,10 +271,10 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
         dec_extra_data.set_schema(Some(schema));
         let dec_extra_data = Some(dec_extra_data);
 
-        info!("  - Building SQL databse.");
+        info!("  - Building SQL database.");
 
         for table in &mut tables {
-            if let Ok(Some(RFileDecoded::DB(data))) = table.decode(&dec_extra_data, false, true) {
+            if let Ok(Some(RFileDecoded::DB(data))) = table.decode(&dec_extra_data, true, true) {
                 if let Err(error) = data.table().db_to_sql(&pool) {
                     warn!("  - Table {}_v{} failed to be populated in the database, with the following error: {}.", data.table_name(), data.definition().version(), error);
                 }
@@ -284,11 +285,10 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
 
         // Execute all the scripts in order.
         let mut edited_tables = vec![];
-        for script in scripts {
+        for (script_path, params) in scripts {
+            let script = script_path.to_string_lossy().to_string().replace("\\", "/");
 
             info!("    - Executing script: {}", script);
-
-            let script_path = PathBuf::from(script);
 
             let mut file = BufReader::new(File::open(script_path)?);
             let mut data = String::new();
@@ -318,9 +318,51 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
                 error!("  - Failed to process sql script {}, due to bad formatting. Make sure the line '-- Tables to import:' (without the commas) it's somewhere in the file.", script);
             }
 
+            // Next, perform the string replacements, if there's any to do.
+            let start_pos = data.find("-- Strings to replace:");
+            let end_pos = data.find("-- End of strings to replace.");
+
+            if let Some(start_pos) = start_pos {
+                if let Some(end_pos) = end_pos {
+                    if start_pos < end_pos {
+                        let mut subqueries = data[start_pos + 26..end_pos]
+                            .replace("\r\n", "\n")
+                            .split("------")
+                            .map(|x| x.replace("--", ""))
+                            .collect::<Vec<_>>();
+
+                        // Reversed so we can do replacements within the queries.
+                        subqueries.reverse();
+                        for subquery in subqueries {
+
+                            // Ignore empty subqueries.
+                            if !subquery.is_empty() && subquery != "\n" {
+                                let split = subquery.split(":::").collect::<Vec<_>>();
+                                if split.len() == 2 {
+                                    let key = split[0].trim();
+                                    let subquery = split[1].split('\n').map(|x| x.trim()).join(" ");
+                                    data = data.replace(key, &subquery);
+                                } else {
+                                    error!("  - Failed to process sql script {}, due to bad formatting. The subquery replacement {} is not formatted correctly.", script, subquery);
+                                }
+                            }
+                        }
+                    } else {
+                        error!("  - Failed to process sql script {}, due to bad formatting. Make sure the line '-- End of subqueries to replace.' is AFTER '-- Subqueries to replace:'.", script);
+                    }
+                } else {
+                    error!("  - Failed to process sql script {}, due to bad formatting. Make sure the line '-- End of subqueries to replace.' (without the commas) it's somewhere in the file.", script);
+                }
+            }
+
+            // Replace the params in the in-memory script. We have to do it this way because execute batch doesn't allow params.
+            for (index, param) in params.iter().enumerate() {
+                data = data.replace(&format!("${}", index), param);
+            }
+
             if let Err(error) = pool.get()?.execute_batch(&data) {
                 error!("  - SQL script failed to execute with the following error: {}.", error);
-
+                error!("  - Contents of the SQL script that failed (in case the error message doesn't output the full script):\n {}.", &data);
             }
         }
 

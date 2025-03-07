@@ -25,6 +25,10 @@ rayon = "^1.7"
 # CLI parsing, formatting and color support.
 clap = { version = "^4", features = ["derive", "wrap_help"] }
 
+# Serialize support.
+serde = "^1.0"
+csv = "^1.1"
+
 # Config dependencies.
 directories = "^6.0"
 lazy_static = "^1.4"

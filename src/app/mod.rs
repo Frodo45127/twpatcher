@@ -10,7 +10,11 @@
 
 //! This module contains the input and command definitions for the tool.
 
+use anyhow::{anyhow, Result};
+use csv::ReaderBuilder;
 use clap::{builder::PossibleValuesParser, Parser};
+
+use std::path::PathBuf;
 
 use rpfm_lib::games::supported_games::SupportedGames;
 
@@ -98,10 +102,46 @@ pub(crate) struct Cli {
     /// EXPERIMENTAL
     ///
     /// It tries to execute the provided sql scripts (yes, admits multiple ones) over the load order.
-    #[arg(long, value_name = "SCRIPT_PATHS")]
-    pub sql_script: Option<Vec<String>>,
+    ///
+    /// For each script, the param is a string with the script path, followed by all the consecutive params in order, everything separated with ;.
+    #[arg(long, value_parser = sql_script_parser, value_name = "SCRIPT_PATH;PARAMS")]
+    pub sql_script: Option<Vec<(PathBuf, Vec<String>)>>,
 
     /// It enables the dev-restricted parts of the UI. Note that the dev-restricted buttons may require things not shipped with the game, and will not work.
     #[arg(short = 'd', long)]
     pub enable_dev_ui: bool,
+}
+
+//---------------------------------------------------------------------------//
+//                          Custom parsers
+//---------------------------------------------------------------------------//
+
+fn sql_script_parser(src: &str) -> Result<(PathBuf, Vec<String>)> {
+    let mut reader = ReaderBuilder::new()
+        .delimiter(b';')
+        .quoting(true)
+        .has_headers(false)
+        .flexible(true)
+        .from_reader(src.as_bytes());
+
+    if let Some(Ok(record)) = reader.records().next() {
+        if record.is_empty() {
+            return Err(anyhow!("Incorrect CSV input."));
+        } else {
+            let path = PathBuf::from(&record[0]);
+            if !path.is_file() {
+                return Err(anyhow!("Path {} doesn't belong to a valid file.", &record[0]));
+            }
+
+            let params = if record.len() >= 2 {
+                (1..record.len()).map(|x| record[x].to_owned()).collect::<Vec<_>>()
+            } else {
+                vec![]
+            };
+
+            return Ok((path, params));
+        }
+    }
+
+    return Err(anyhow!("Incorrect CSV input."));
 }

@@ -89,7 +89,6 @@ pub fn load_order_from_file(load_order_path: &Path, game: &GameInfo, game_path: 
         }
     };
 
-    // TODO: test this with utf16 userscript files.
     let mut file = BufReader::new(File::open(load_order_path)?);
     let string = if is_utf_16 {
         let mut data = vec![];
@@ -118,6 +117,15 @@ pub fn load_order_from_file(load_order_path: &Path, game: &GameInfo, game_path: 
         )
         .collect::<Vec<_>>();
 
+    let excluded_movie_paths = string.lines()
+        .filter(|x| x.starts_with("exclude_pack_file \""))
+        .map(|x| x[19..x.len() - 2].trim().to_owned())
+        .filter_map(|pack_name| working_paths.iter()
+            .position(|path| path.join(&pack_name).is_file())
+            .map(|x| working_paths[x].join(&pack_name))
+        )
+        .collect::<Vec<_>>();
+
     // We need to get the movie packs. Instead of checking every pack, we check the ones not already in the mod list, and not known as CA paths.
     let vanilla_paths = game.ca_packs_paths(game_path)?
         .iter()
@@ -127,11 +135,11 @@ pub fn load_order_from_file(load_order_path: &Path, game: &GameInfo, game_path: 
     // /data is already included here.
     for working_path in &working_paths {
         if let Ok(mut paths) = files_from_subdir(working_path, false) {
-            paths.retain(|x| x.ends_with(".pack"));
+            paths.retain(|x| x.extension().is_some() && x.extension().unwrap() == "pack");
             paths.iter_mut().for_each(|x| *x = path_to_absolute_path(x, true));
 
             for path in &paths {
-                if !mod_paths.contains(path) && !vanilla_paths.contains(path) {
+                if !mod_paths.contains(path) && !vanilla_paths.contains(path) && !excluded_movie_paths.contains(path) {
                     if let Ok(pack) = Pack::read_and_merge(&[path.to_path_buf()], true, false, false) {
                         if pack.pfh_file_type() == PFHFileType::Movie {
                             mod_paths.push(path.to_path_buf());

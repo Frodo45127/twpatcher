@@ -8,6 +8,7 @@ description = "A load order patcher for Total War games since Empire: Total War.
 authors = ["Frodo45127 <frodo_gv@hotmail.com>"]
 
 [dependencies]
+common_utils = { path = "../common_utils", version = "^0.1" }
 
 # Internal dependencies.
 rpfm_lib = { git = "https://github.com/Frodo45127/rpfm.git", branch = "develop", features = ["integration_log", "integration_git", "integration_sqlite"] }
@@ -32,12 +33,6 @@ csv = "^1.1"
 # Config dependencies.
 directories = "^6.0"
 lazy_static = "^1.4"
-
-# Autoupdate support.
-self_update = { version = "^0.42" }
-tempfile = "^3.8"
-reqwest = "^0.12"
-zip-extract = "^0.2"
 
 # Support for open files in a native way.
 open = "^5"

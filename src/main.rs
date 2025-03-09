@@ -23,18 +23,18 @@ use lazy_static::lazy_static;
 use std::path::PathBuf;
 use std::process::exit;
 
+use common_utils::updater::*;
+
 use rpfm_lib::games::supported_games::SupportedGames;
 use rpfm_lib::integrations::{git::GitIntegration, log::*};
 use rpfm_lib::schema::*;
 
 use crate::app::Cli;
 use crate::games::*;
-use crate::updater::*;
 use crate::utils::*;
 
 mod app;
 mod games;
-mod updater;
 mod utils;
 
 lazy_static!{
@@ -48,6 +48,9 @@ lazy_static!{
         path
     };
 }
+
+const REPO_OWNER: &str = "Frodo45127";
+const REPO_NAME: &str = "twpatcher";
 
 /// Guess you know what this function does....
 fn main() {
@@ -81,13 +84,14 @@ fn main() {
     if !cli.skip_updates_check {
         info!("Update Checks enabled. Checking if there are updates available.");
 
-        match cli_updates_check() {
+        let updater = Updater::new(UpdateChannel::Stable, REPO_OWNER, REPO_NAME);
+        match updater.check() {
             Ok(response) => match response {
                 APIResponse::NewBetaUpdate(update) |
                 APIResponse::NewStableUpdate(update) |
                 APIResponse::NewUpdateHotfix(update) => {
                     info!("- New update available: {}. Downlaoding and installing update...", update);
-                    if let Err(error) = cli_updates_download() {
+                    if let Err(error) = updater.download() {
                         error!("- Error when downloading/installing the update: {}", error);
                     } else {
                         info!("- Update downloaded and installed. Restart the program to use it.");

@@ -143,5 +143,5 @@ fn sql_script_parser(src: &str) -> Result<(PathBuf, Vec<String>)> {
         }
     }
 
-    return Err(anyhow!("Incorrect CSV input."));
+    Err(anyhow!("Incorrect CSV input."))
 }

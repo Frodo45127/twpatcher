@@ -8,16 +8,17 @@
 // https://github.com/Frodo45127/twpatcher/blob/master/LICENSE.
 //---------------------------------------------------------------------------//
 
-use anyhow::Result;
-use itertools::Itertools;
+use anyhow::{anyhow, Result};
+
 use r2d2::Pool;
 use r2d2_sqlite::SqliteConnectionManager;
 use rayon::prelude::*;
 
 use std::collections::{HashMap, HashSet};
-use std::fs::{DirBuilder, File};
-use std::io::{BufReader, Read};
+use std::fs::DirBuilder;
 use std::path::{PathBuf, Path};
+
+use common_utils::sql::SQLScript;
 
 use rpfm_extensions::dependencies::Dependencies;
 use rpfm_extensions::optimizer::Optimizable;
@@ -157,11 +158,11 @@ pub fn prepare_launch_options(cli: &Cli,
     // Universal rebalancer.
     prepare_universal_rebalancer(cli, game, reserved_pack, vanilla_pack, modded_pack, schema, load_order)?;
 
-    // SQL Queries.
-    prepare_sql_queries(cli, game, reserved_pack, vanilla_pack, modded_pack, schema)?;
-
     // Enable dev ui in all ui files.
     prepare_dev_ui(cli, game, reserved_pack, vanilla_pack, modded_pack)?;
+
+    // SQL Queries.
+    prepare_sql_queries(cli, game, reserved_pack, vanilla_pack, modded_pack, schema)?;
 
     Ok(())
 }
@@ -196,7 +197,7 @@ pub fn prepare_dev_ui(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack, vani
         for file in &mut files {
             if let Ok(Some(RFileDecoded::Text(mut data))) = file.decode(&dec_extra_data, false, true) {
                 if data.contents().contains("is_dev_only=\"true\"") {
-                    let mut new_data = data.contents().replace("is_dev_only=\"true\"", "is_dev_only=\"false\"");
+                    let mut new_data = data.contents().replace("is_dev_only=\"true\"", "is_dev_only=\"false\"").replace("RunCLI", "CliExecute");
 
                     // Make the items visible. The ui files use both, is_visible and visible.
                     let mut pos = 0;
@@ -227,9 +228,12 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
     info!("- Apply SQL Scripts: {}.", cli.sql_script.is_some());
 
     if let Some(ref scripts) = cli.sql_script {
+        let mut script_failed = false;
+
         info!("  - SQL Scripts to apply:");
-        for (script, params) in scripts {
-            info!("    - Path: {}. Params: {}", script.to_string_lossy().to_string().replace("\\", "/"), params.join(","));
+
+        for (path, params) in scripts {
+            info!("    - Path: {}. Params: {}", path.to_string_lossy().to_string().replace("\\", "/"), params.join(","));
         }
 
         let mut tables = vanilla_pack.files_by_type(&[FileType::DB])
@@ -266,6 +270,7 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
             VACUUM;
             PRAGMA INTEGRITY_CHECK;
         ") {
+            script_failed = true;
             error!("  - Error reseting the database file: {}.", error);
         }
 
@@ -287,86 +292,44 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
 
         info!("  - Executing scripts:");
 
-        // Execute all the scripts in order.
         let mut edited_tables = vec![];
-        for (script_path, params) in scripts {
-            let script = script_path.to_string_lossy().to_string().replace("\\", "/");
 
-            info!("    - Executing script: {}", script);
+        // Execute all the scripts in order.
+        for (path, params) in scripts {
+            let path_str = path.to_string_lossy().to_string().replace("\\", "/");
 
-            let mut file = BufReader::new(File::open(script_path)?);
-            let mut data = String::new();
-            file.read_to_string(&mut data)?;
+            info!("    - Executing script: {}", path_str);
 
-            // Get the array of tables to import first. It must always exist at the start of the file, after the random comment.
-            let start_pos = data.find("-- Tables to import:");
-            let end_pos = data.find("-- End of tables to import.");
+            match SQLScript::from_path(path) {
+                Ok(script) => {
+                    edited_tables.extend_from_slice(&script.metadata()
+                        .tables_affected()
+                        .iter()
+                        .map(|x| format!("db/{}_tables/", x))
+                        .collect::<Vec<_>>()
+                    );
 
-            if let Some(start_pos) = start_pos {
-                if let Some(end_pos) = end_pos {
-                    if start_pos < end_pos {
-                        let tables = data[start_pos + 20..end_pos].replace("-- ", "").replace("\r\n", "\n");
-                        let tables_split = tables.split("\n")
-                            .map(|x| x.trim())
-                            .filter(|x| !x.is_empty())
-                            .map(|x| format!("db/{}_tables/", x))
-                            .collect::<Vec<_>>();
-                        edited_tables.extend_from_slice(&tables_split);
-                    } else {
-                        error!("  - Failed to process sql script {}, due to bad formatting. Make sure the line '-- End of tables to import.' is AFTER '-- Tables to import:', with lines with the format '-- land_units' (the name of the table to import, without the _tables ending, and one table per line) in between.", script);
+                    let mut param_values = HashMap::new();
+
+                    for (index, param) in script.metadata().parameters().iter().enumerate() {
+                        match params.get(index) {
+                            Some(param_value) => param_values.insert(param.key().to_string(), param_value.to_string()),
+                            None => param_values.insert(param.key().to_string(), param.default_value().to_string()),
+                        };
                     }
-                } else {
-                    error!("  - Failed to process sql script {}, due to bad formatting. Make sure the line '-- End of tables to import.' (without the commas) it's somewhere in the file.", script);
-                }
-            } else {
-                error!("  - Failed to process sql script {}, due to bad formatting. Make sure the line '-- Tables to import:' (without the commas) it's somewhere in the file.", script);
-            }
 
-            // Next, perform the string replacements, if there's any to do.
-            let start_pos = data.find("-- Strings to replace:");
-            let end_pos = data.find("-- End of strings to replace.");
+                    let query = script.prepare(param_values);
 
-            if let Some(start_pos) = start_pos {
-                if let Some(end_pos) = end_pos {
-                    if start_pos < end_pos {
-                        let mut subqueries = data[start_pos + 26..end_pos]
-                            .replace("\r\n", "\n")
-                            .split("------")
-                            .map(|x| x.replace("--", ""))
-                            .collect::<Vec<_>>();
-
-                        // Reversed so we can do replacements within the queries.
-                        subqueries.reverse();
-                        for subquery in subqueries {
-
-                            // Ignore empty subqueries.
-                            if !subquery.is_empty() && subquery != "\n" {
-                                let split = subquery.split(":::").collect::<Vec<_>>();
-                                if split.len() == 2 {
-                                    let key = split[0].trim();
-                                    let subquery = split[1].split('\n').map(|x| x.trim()).join(" ");
-                                    data = data.replace(key, &subquery);
-                                } else {
-                                    error!("  - Failed to process sql script {}, due to bad formatting. The subquery replacement {} is not formatted correctly.", script, subquery);
-                                }
-                            }
-                        }
-                    } else {
-                        error!("  - Failed to process sql script {}, due to bad formatting. Make sure the line '-- End of subqueries to replace.' is AFTER '-- Subqueries to replace:'.", script);
+                    if let Err(error) = pool.get()?.execute_batch(&query) {
+                        script_failed = true;
+                        error!("  - SQL script failed to execute with the following error: {}.", error);
+                        error!("  - Contents of the SQL script that failed (in case the error message doesn't output the full script):\n {}.", &query);
                     }
-                } else {
-                    error!("  - Failed to process sql script {}, due to bad formatting. Make sure the line '-- End of subqueries to replace.' (without the commas) it's somewhere in the file.", script);
                 }
-            }
-
-            // Replace the params in the in-memory script. We have to do it this way because execute batch doesn't allow params.
-            for (index, param) in params.iter().enumerate() {
-                data = data.replace(&format!("${}", index), param);
-            }
-
-            if let Err(error) = pool.get()?.execute_batch(&data) {
-                error!("  - SQL script failed to execute with the following error: {}.", error);
-                error!("  - Contents of the SQL script that failed (in case the error message doesn't output the full script):\n {}.", &data);
+                Err(error) => {
+                    error!("    - Error reading script: {}. Error: {}", path_str, error);
+                    script_failed = true;
+                },
             }
         }
 
@@ -389,6 +352,11 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
         }
 
         info!("  - SQL scripts processed.");
+
+        if script_failed {
+            error!("  - Something failed when processing the SQL scripts. Read this terminal for more info.");
+            return Err(anyhow!("Something failed when processing the SQL scripts."));
+        }
     }
 
     Ok(())

@@ -103,53 +103,36 @@ fn main() {
 
             Err(error) => {
                 error!("- Update Checks failed due to: {}.", error);
-
             }
         }
     }
 
     let game = match SupportedGames::default().game(&cli.game).cloned() {
         Some(game) => game,
-        None => {
-            error!("Invalid game provided: {}", cli.game);
-            exit(1);
-        },
+        None => return error_path(&format!("Invalid game provided: {}", cli.game)),
     };
 
     let game_path = match game.find_game_install_location() {
         Ok(Some(game_path)) => game_path,
-        _ => {
-            error!("Game Path not found");
-            exit(1);
-        },
+        _ => return error_path("Game Path not found"),
     };
 
     let data_path = match game.data_path(&game_path) {
         Ok(path) => path,
-        _ => {
-            error!("Data Path not found");
-            exit(1);
-        },
+        _ => return error_path("Data Path not found"),
     };
 
     let mut reserved_pack = match init_reserved_pack(&game) {
         Ok(pack) => pack,
-        Err(error) => {
-            error!("{}", error.to_string());
-            exit(1);
-        },
+        Err(error) => return error_path(&error.to_string()),
     };
 
 
     let mut vanilla_pack = match init_vanilla_pack(&game, &game_path) {
         Ok(pack) => pack,
-        Err(error) => {
-            error!("{}", error.to_string());
-            exit(1);
-        },
+        Err(error) => return error_path(&error.to_string()),
     };
 
-    // TODO: Make this work with userscript and utf16.
     info!("Vanilla data loaded. Loading load order data for: {}.", game.display_name());
 
     let load_order_path = game_path.join(&cli.load_order_file_name);
@@ -159,10 +142,7 @@ fn main() {
 
     let load_order = match load_order_from_file(&load_order_path, &game, &game_path, &data_path) {
         Ok(load_order) => load_order,
-        Err(error) => {
-            error!("{}", error.to_string());
-            exit(1);
-        },
+        Err(error) => return error_path(&error.to_string()),
     };
 
     info!("Load order found with the following mods:");
@@ -172,10 +152,7 @@ fn main() {
 
     let mut modded_pack = match init_modded_pack(&load_order) {
         Ok(pack) => pack,
-        Err(error) => {
-            error!("{}", error.to_string());
-            exit(1);
-        },
+        Err(error) => return error_path(&error.to_string()),
     };
 
     info!("Mod data loaded.");
@@ -194,37 +171,32 @@ fn main() {
 
             match Schema::load(&local_path.join(game.schema_file_name()), None) {
                 Ok(schema) => schema,
-                Err(error) => {
-                    error!("{}", error.to_string());
-                    exit(1);
-                },
+                Err(error) => return error_path(&error.to_string()),
             }
-
         },
-        Err(error) => {
-            error!("{}", error.to_string());
-            exit(1);
-        },
+        Err(error) => return error_path(&error.to_string()),
     };
 
     info!("Schema loaded. Processing selected options...");
 
     // With all the needed data initialized, check what flags we passed through the cli.
-    if let Err(error) = prepare_launch_options(&cli, &game, &mut reserved_pack, &mut vanilla_pack, &mut modded_pack, &schema, &load_order, &game_path) {
-        error!("{}", error.to_string());
-        exit(1);
-    }
-
+    prepare_launch_options(&cli, &game, &mut reserved_pack, &mut vanilla_pack, &mut modded_pack, &schema, &load_order, &game_path).unwrap_or_else(|error| error_path(&error.to_string()));
     info!("Options processed. Saving Pack");
 
     // If everything worked as expected, save the reserved pack.
     let custom_path = cli.generated_pack_path.clone().map(PathBuf::from);
-    if let Err(error) = save_reserved_pack(&game, &mut reserved_pack, &load_order, &data_path, custom_path) {
-        error!("{}", error.to_string());
-        exit(1);
-    }
+    save_reserved_pack(&game, &mut reserved_pack, &load_order, &data_path, custom_path).unwrap_or_else(|error| error_path(&error.to_string()));
 
     info!("All done. Closing. Bye!");
 
     exit(0)
+}
+
+fn error_path(error: &str) {
+    error!("{}", error.to_string());
+
+    info!("This terminal will close itself in 60 seconds to give you some time to read the log, but if you want, you can close it now.");
+    std::thread::sleep(std::time::Duration::from_millis(60000));
+
+    exit(1);
 }

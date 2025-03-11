@@ -6,6 +6,18 @@ and this project doesn't adhere to [Semantic Versioning](https://semver.org/spec
 
 If you're looking for the changes included in the latest beta (against the latest stable version), check the unreleased section.
 
+## [0.9.4]
+### Added
+- Implemented "Enable Dev-Only UI" feature.
+- Implemented support for parametrized SQL scripts.
+
+### Changed
+- The sqlite database now is cleared properly.
+
+### Fixed
+- Fixed an issue that caused changes made by SQL scripts to not show up ingame.
+- Fixed an issue that caused movie packs in data to not be taken into account as part of the load order.
+
 ## [0.9.3]
 ### Added
 - Implemented experimental support for SQL scripts.

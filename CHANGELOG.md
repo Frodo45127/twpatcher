@@ -34,7 +34,8 @@ If you're looking for the changes included in the latest beta (against the lates
 ### Changed
 - Initial Release
 
-[Unreleased]: https://github.com/Frodo45127/twpatcher/compare/v0.9.3...HEAD
+[Unreleased]: https://github.com/Frodo45127/twpatcher/compare/v0.9.4...HEAD
+[0.9.4]: https://github.com/Frodo45127/twpatcher/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/Frodo45127/twpatcher/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/Frodo45127/twpatcher/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/Frodo45127/twpatcher/compare/v0.9.0...v0.9.1

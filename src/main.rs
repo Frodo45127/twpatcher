@@ -85,7 +85,7 @@ fn main() {
         info!("Update Checks enabled. Checking if there are updates available.");
 
         let updater = Updater::new(UpdateChannel::Stable, REPO_OWNER, REPO_NAME);
-        match updater.check() {
+        match updater.check(env!("CARGO_PKG_VERSION")) {
             Ok(response) => match response {
                 APIResponse::NewBetaUpdate(update) |
                 APIResponse::NewStableUpdate(update) |

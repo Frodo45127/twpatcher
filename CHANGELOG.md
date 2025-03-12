@@ -6,6 +6,10 @@ and this project doesn't adhere to [Semantic Versioning](https://semver.org/spec
 
 If you're looking for the changes included in the latest beta (against the latest stable version), check the unreleased section.
 
+## [0.9.5]
+### Fixed
+- Fixed autoupdater version check.
+
 ## [0.9.4]
 ### Added
 - Implemented "Enable Dev-Only UI" feature.

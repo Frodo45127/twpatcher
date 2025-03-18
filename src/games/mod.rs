@@ -264,7 +264,8 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
         info!("  - Removing old db (if exists) and creating it anew.");
 
         // Make sure the database is clean before rebuilding it.
-        let manager = SqliteConnectionManager::file(DB_FILE);
+        let db_path = config_path()?.join(DB_FILE);
+        let manager = SqliteConnectionManager::file(db_path);
         let pool = Pool::new(manager)?;
         if let Err(error) = pool.get()?.execute_batch("
             PRAGMA writable_schema = 1;

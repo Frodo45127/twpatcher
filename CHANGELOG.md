@@ -6,6 +6,13 @@ and this project doesn't adhere to [Semantic Versioning](https://semver.org/spec
 
 If you're looking for the changes included in the latest beta (against the latest stable version), check the unreleased section.
 
+## [0.9.6]
+### Added
+- Implemented support for INSERT INTO SQL statements.
+
+### Changed
+- DB is now in the config folder.
+
 ## [0.9.5]
 ### Fixed
 - Fixed autoupdater version check.
@@ -38,7 +45,8 @@ If you're looking for the changes included in the latest beta (against the lates
 ### Changed
 - Initial Release
 
-[Unreleased]: https://github.com/Frodo45127/twpatcher/compare/v0.9.5...HEAD
+[Unreleased]: https://github.com/Frodo45127/twpatcher/compare/v0.9.6...HEAD
+[0.9.6]: https://github.com/Frodo45127/twpatcher/compare/v0.9.5...v0.9.6
 [0.9.5]: https://github.com/Frodo45127/twpatcher/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/Frodo45127/twpatcher/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/Frodo45127/twpatcher/compare/v0.9.2...v0.9.3

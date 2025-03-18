@@ -177,7 +177,7 @@ pub fn init_modded_pack(paths: &[PathBuf]) -> Result<Pack> {
     }
 }
 
-pub fn save_reserved_pack(game: &GameInfo, pack: &mut Pack, mod_paths: &[PathBuf], data_path: &Path, custom_path: Option<PathBuf>) -> Result<()> {
+pub fn save_reserved_pack(game: &GameInfo, pack: &mut Pack, mod_paths: &[PathBuf], data_path: &Path, custom_path: &Option<PathBuf>) -> Result<()> {
 
     // We need to use an alternative name for Shogun 2, Rome 2, Attila and Thrones because their load order logic for movie packs seems... either different or broken.
     let reserved_pack_name = if game.key() == KEY_SHOGUN_2 || game.key() == KEY_ROME_2 || game.key() == KEY_ATTILA || game.key() == KEY_THRONES_OF_BRITANNIA {

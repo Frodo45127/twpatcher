@@ -239,24 +239,27 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
         let mut tables = vanilla_pack.files_by_type(&[FileType::DB])
             .into_iter()
             .cloned()
+            .map(|x| (x, true))
             .collect::<Vec<_>>();
 
         // Give the daracores extreme low priority so they don't overwrite other mods tables.
-        tables.iter_mut().for_each(rename_file_name_to_low_priority);
+        tables.iter_mut().for_each(|(x,_)| rename_file_name_to_low_priority(x));
 
         tables.append(&mut modded_pack.files_by_type(&[FileType::DB])
             .into_iter()
             .cloned()
+            .map(|x| (x, false))
             .collect::<Vec<_>>());
 
         // Just in case another step of the launch process adds this table.
         tables.append(&mut reserved_pack.files_by_type(&[FileType::DB])
             .into_iter()
             .cloned()
+            .map(|x| (x, false))
             .collect::<Vec<_>>());
 
         // Sort them so file processing is done in the correct order.
-        tables.sort_by_key(|rfile| rfile.path_in_container_raw().to_string());
+        tables.sort_by_key(|(rfile, _)| rfile.path_in_container_raw().to_string());
 
         info!("  - Removing old db (if exists) and creating it anew.");
 
@@ -282,9 +285,12 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
 
         info!("  - Building SQL database.");
 
-        for table in &mut tables {
+        for (table, is_vanilla) in &mut tables {
             if let Ok(Some(RFileDecoded::DB(data))) = table.decode(&dec_extra_data, true, true) {
-                if let Err(error) = data.table().db_to_sql(&pool) {
+                let container_name = table.container_name().clone().unwrap();
+                let file_name = table.file_name().unwrap().to_owned();
+
+                if let Err(error) = data.table().db_to_sql(&pool, &container_name, &file_name, *is_vanilla) {
                     warn!("  - Table {}_v{} failed to be populated in the database, with the following error: {}.", data.table_name(), data.definition().version(), error);
                 }
             }
@@ -293,6 +299,7 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
         info!("  - Executing scripts:");
 
         let mut edited_tables = vec![];
+        let mut new_tables = vec![];
 
         // Execute all the scripts in order.
         for (path, params) in scripts {
@@ -306,8 +313,13 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
                         .tables_affected()
                         .iter()
                         .map(|x| format!("db/{}_tables/", x))
-                        .collect::<Vec<_>>()
-                    );
+                        .collect::<Vec<_>>());
+
+                    new_tables.extend_from_slice(&script.metadata()
+                        .tables_created()
+                        .iter()
+                        .map(|(table_name, file_name)| (format!("db/{table_name}_tables/{file_name}"), format!("{table_name}_tables")))
+                        .collect::<Vec<_>>());
 
                     let mut param_values = HashMap::new();
 
@@ -318,7 +330,7 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
                         };
                     }
 
-                    let query = script.prepare(param_values);
+                    let query = script.prepare(param_values, &reserved_pack.disk_file_name());
 
                     if let Err(error) = pool.get()?.execute_batch(&query) {
                         script_failed = true;
@@ -335,13 +347,42 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
 
         info!("  - Rebuilding in-memory tables.");
 
+
+        // If the script contains tables to create, make them empty so they're used in the retrieving pass.
+        // To avoid all the whole version guessing, we just copy the table from the list of decoded tables and empty it.
+        for (path, table_name) in &new_tables {
+            match tables.iter()
+                .filter_map(|(rfile, _)| if let Some(RFileDecoded::DB(table)) = rfile.decoded().ok() {
+                    if table.table_name() == table_name { Some(table) }
+                    else { None }
+                } else {
+                    None
+                }).find(|table| table.table_name() == table_name) {
+                Some(table) => {
+                    let mut table = table.clone();
+                    table.data_mut().clear();
+
+                    let decoded = RFileDecoded::DB(table);
+                    let file = RFile::new_from_decoded(&decoded, 0, path);
+
+                    tables.push((file, false));
+                }
+                None => warn!("Table {} has not been found in the game files or in any enable mod, and cannot be created.", table_name),
+            }
+        }
+
         // Retrieve the data of the tables specified in the scripts and add them to the reserved pack.
-        for table in &mut tables {
+        for (table, _) in &mut tables {
             for edited_path in &edited_tables {
 
                 if table.path_in_container_raw().starts_with(edited_path) {
+
+                    // NOTE: new files do not have a container name. Use the reserved pack as fallback.
+                    let container_name = table.container_name().clone().unwrap_or_else(|| reserved_pack.disk_file_name());
+                    let file_name = table.file_name().unwrap().to_owned();
+
                     if let Ok(RFileDecoded::DB(ref mut data)) = table.decoded_mut() {
-                        data.sql_to_db(&pool)?;
+                        data.sql_to_db(&pool, &container_name, &file_name)?;
                     }
 
                     table.encode(&enc_extra_data, false, true, false)?;

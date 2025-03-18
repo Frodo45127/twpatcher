@@ -179,13 +179,16 @@ fn main() {
 
     info!("Schema loaded. Processing selected options...");
 
+    // Save it to disk once empty so its disk path is saved correctly.
+    let custom_path = cli.generated_pack_path.clone().map(PathBuf::from);
+    save_reserved_pack(&game, &mut reserved_pack, &load_order, &data_path, &custom_path).unwrap_or_else(|error| error_path(&error.to_string()));
+
     // With all the needed data initialized, check what flags we passed through the cli.
     prepare_launch_options(&cli, &game, &mut reserved_pack, &mut vanilla_pack, &mut modded_pack, &schema, &load_order, &game_path).unwrap_or_else(|error| error_path(&error.to_string()));
     info!("Options processed. Saving Pack");
 
     // If everything worked as expected, save the reserved pack.
-    let custom_path = cli.generated_pack_path.clone().map(PathBuf::from);
-    save_reserved_pack(&game, &mut reserved_pack, &load_order, &data_path, custom_path).unwrap_or_else(|error| error_path(&error.to_string()));
+    save_reserved_pack(&game, &mut reserved_pack, &load_order, &data_path, &custom_path).unwrap_or_else(|error| error_path(&error.to_string()));
 
     info!("All done. Closing. Bye!");
 

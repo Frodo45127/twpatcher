@@ -108,7 +108,9 @@ pub const TRANSLATIONS_BRANCH: &str = "master";
 pub const VANILLA_LOC_NAME: &str = "vanilla_english.tsv";
 pub const VANILLA_FIXES_NAME: &str = "vanilla_fixes_";
 
-const DB_FILE: &str = "sql.db3";
+const DB_EXTENSION: &str = ".db3";
+const DB_BAK_EXTENSION: &str = ".bak";
+const DB_FOLDER: &str = "dbs";
 
 mod attila;
 mod empire;
@@ -162,7 +164,7 @@ pub fn prepare_launch_options(cli: &Cli,
     prepare_dev_ui(cli, game, reserved_pack, vanilla_pack, modded_pack)?;
 
     // SQL Queries.
-    prepare_sql_queries(cli, game, reserved_pack, vanilla_pack, modded_pack, schema)?;
+    prepare_sql_queries(cli, game, reserved_pack, vanilla_pack, modded_pack, schema, game_path)?;
 
     Ok(())
 }
@@ -224,7 +226,7 @@ pub fn prepare_dev_ui(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack, vani
     Ok(())
 }
 
-pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack, vanilla_pack: &mut Pack, modded_pack: &mut Pack, schema: &Schema) -> Result<()> {
+pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack, vanilla_pack: &mut Pack, modded_pack: &mut Pack, schema: &Schema, game_path: &Path) -> Result<()> {
     info!("- Apply SQL Scripts: {}.", cli.sql_script.is_some());
 
     if let Some(ref scripts) = cli.sql_script {
@@ -261,38 +263,78 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
         // Sort them so file processing is done in the correct order.
         tables.sort_by_key(|(rfile, _)| rfile.path_in_container_raw().to_string());
 
-        info!("  - Removing old db (if exists) and creating it anew.");
-
-        // Make sure the database is clean before rebuilding it.
-        let db_path = config_path()?.join(DB_FILE);
-        let manager = SqliteConnectionManager::file(db_path);
-        let pool = Pool::new(manager)?;
-        if let Err(error) = pool.get()?.execute_batch("
-            PRAGMA writable_schema = 1;
-            delete from sqlite_master where type in ('table', 'index', 'trigger');
-            PRAGMA writable_schema = 0;
-            VACUUM;
-            PRAGMA INTEGRITY_CHECK;
-        ") {
-            script_failed = true;
-            error!("  - Error reseting the database file: {}.", error);
-        }
-
         // Then, back all tables to a sqlite database.
         let enc_extra_data = Some(EncodeableExtraData::new_from_game_info(game));
         let mut dec_extra_data = DecodeableExtraData::default();
         dec_extra_data.set_schema(Some(schema));
         let dec_extra_data = Some(dec_extra_data);
 
-        info!("  - Building SQL database.");
+        // To avoid a 15 second rebuild on each launch, we keep a copy of the db, per game, containing the vanilla dump.
+        // We only rebuild it if it's not there, or if the vanilla files got an update.
+        DirBuilder::new().recursive(true).create(config_path()?.join(DB_FOLDER))?;
 
+        let db_path = config_path()?.join(format!("{}/{}{}", DB_FOLDER, game.key(), DB_EXTENSION));
+        let db_path_bak = config_path()?.join(format!("{}/{}{}", DB_FOLDER, game.key(), DB_BAK_EXTENSION));
+
+        let exe_path = game.executable_path(game_path).unwrap_or_default();
+        if !db_path_bak.is_file() || exe_path.is_file() && exe_path.metadata()?.created()? > db_path_bak.metadata()?.created()? {
+            info!("  - Recreating vanilla db, as either it didn't exist, or the game has been updated.");
+
+            // Make sure the database is clean before rebuilding it.
+            let manager = SqliteConnectionManager::file(&db_path_bak);
+            let pool = Pool::new(manager)?;
+            if let Err(error) = pool.get()?.execute_batch("
+                PRAGMA writable_schema = 1;
+                delete from sqlite_master where type in ('table', 'index', 'trigger');
+                PRAGMA writable_schema = 0;
+                VACUUM;
+                PRAGMA INTEGRITY_CHECK;
+            ") {
+                script_failed = true;
+                error!("  - Error reseting the database file: {}.", error);
+            }
+
+            info!("  - Building SQL database with vanilla data.");
+
+            for (table, is_vanilla) in &mut tables {
+                if *is_vanilla {
+                    if let Ok(Some(RFileDecoded::DB(data))) = table.decode(&dec_extra_data, true, true) {
+                        let container_name = table.container_name().clone().unwrap();
+                        let file_name = table.file_name().unwrap().to_owned();
+
+                        if let Err(error) = data.table().db_to_sql(&pool, &container_name, &file_name, *is_vanilla) {
+                            warn!("  - Table {}_v{} failed to be populated in the database, with the following error: {}.", data.table_name(), data.definition().version(), error);
+                        }
+                    }
+                }
+            }
+        }
+
+        // In case we have a pre-existing valid db, we still need to decode in memory the tables.
+        // Otherwise, the sql_to_db functions won't work and data will not be moved back to the pack.
+        else {
+
+            tables.par_iter_mut()
+                .filter(|(_, is_vanilla)| *is_vanilla)
+                .for_each(|(table, _)| {
+                    let _ = table.decode(&dec_extra_data, true, false);
+                });
+        }
+
+        std::fs::copy(db_path_bak, &db_path)?;
+        let manager = SqliteConnectionManager::file(db_path);
+        let pool = Pool::new(manager)?;
+
+        info!("  - Building SQL database with modded data.");
         for (table, is_vanilla) in &mut tables {
-            if let Ok(Some(RFileDecoded::DB(data))) = table.decode(&dec_extra_data, true, true) {
-                let container_name = table.container_name().clone().unwrap();
-                let file_name = table.file_name().unwrap().to_owned();
+            if !*is_vanilla {
+                if let Ok(Some(RFileDecoded::DB(data))) = table.decode(&dec_extra_data, true, true) {
+                    let container_name = table.container_name().clone().unwrap();
+                    let file_name = table.file_name().unwrap().to_owned();
 
-                if let Err(error) = data.table().db_to_sql(&pool, &container_name, &file_name, *is_vanilla) {
-                    warn!("  - Table {}_v{} failed to be populated in the database, with the following error: {}.", data.table_name(), data.definition().version(), error);
+                    if let Err(error) = data.table().db_to_sql(&pool, &container_name, &file_name, *is_vanilla) {
+                        warn!("  - Table {}_v{} failed to be populated in the database, with the following error: {}.", data.table_name(), data.definition().version(), error);
+                    }
                 }
             }
         }
@@ -348,7 +390,6 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
 
         info!("  - Rebuilding in-memory tables.");
 
-
         // If the script contains tables to create, make them empty so they're used in the retrieving pass.
         // To avoid all the whole version guessing, we just copy the table from the list of decoded tables and empty it.
         for (path, table_name) in &new_tables {
@@ -384,6 +425,8 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
 
                     if let Ok(RFileDecoded::DB(ref mut data)) = table.decoded_mut() {
                         data.sql_to_db(&pool, &container_name, &file_name)?;
+                    } else {
+                        warn!("Table with path {} is not pre-decoded. This is a bug and should be reported.", edited_path);
                     }
 
                     table.encode(&enc_extra_data, false, true, false)?;

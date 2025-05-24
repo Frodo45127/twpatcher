@@ -6,6 +6,10 @@ and this project doesn't adhere to [Semantic Versioning](https://semver.org/spec
 
 If you're looking for the changes included in the latest beta (against the latest stable version), check the unreleased section.
 
+## [0.9.7]
+### Changed
+- SQL script processing should be a lot faster now.
+
 ## [0.9.6]
 ### Added
 - Implemented support for INSERT INTO SQL statements.

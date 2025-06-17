@@ -6,6 +6,11 @@ and this project doesn't adhere to [Semantic Versioning](https://semver.org/spec
 
 If you're looking for the changes included in the latest beta (against the latest stable version), check the unreleased section.
 
+## [0.9.8]
+### Changed
+- Updated RPFM lib to 4.4.2, to enable support for compressed packs.
+- Databases now cache the vanilla data, so speed up launching the game a lot.
+
 ## [0.9.7]
 ### Changed
 - SQL script processing should be a lot faster now.

@@ -6,6 +6,11 @@ and this project doesn't adhere to [Semantic Versioning](https://semver.org/spec
 
 If you're looking for the changes included in the latest beta (against the latest stable version), check the unreleased section.
 
+## [0.9.9]
+### Fixed
+- Fixed error when saving patched pack.
+- Fixed error decoding compressed files with a very specific file size.
+
 ## [0.9.8]
 ### Changed
 - Updated RPFM lib to 4.4.2, to enable support for compressed packs.
@@ -54,7 +59,10 @@ If you're looking for the changes included in the latest beta (against the lates
 ### Changed
 - Initial Release
 
-[Unreleased]: https://github.com/Frodo45127/twpatcher/compare/v0.9.6...HEAD
+[Unreleased]: https://github.com/Frodo45127/twpatcher/compare/v0.9.9...HEAD
+[0.9.9]: https://github.com/Frodo45127/twpatcher/compare/v0.9.8...v0.9.9
+[0.9.8]: https://github.com/Frodo45127/twpatcher/compare/v0.9.7...v0.9.8
+[0.9.7]: https://github.com/Frodo45127/twpatcher/compare/v0.9.6...v0.9.7
 [0.9.6]: https://github.com/Frodo45127/twpatcher/compare/v0.9.5...v0.9.6
 [0.9.5]: https://github.com/Frodo45127/twpatcher/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/Frodo45127/twpatcher/compare/v0.9.3...v0.9.4

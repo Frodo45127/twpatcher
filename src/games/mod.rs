@@ -650,7 +650,7 @@ pub fn prepare_translations(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack
 
                     // If there's no translation data, just merge their locs.
                     if !translation_found {
-                        let mut pack = Pack::read_and_merge(&[pack_path.to_path_buf()], true, false, true)?;
+                        let mut pack = Pack::read_and_merge(&[pack_path.to_path_buf()], game, true, false, true)?;
 
                         let mut locs = pack.files_by_type_mut(&[FileType::Loc]);
 

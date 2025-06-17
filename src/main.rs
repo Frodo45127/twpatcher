@@ -150,7 +150,7 @@ fn main() {
         info!("- {}", entry.to_string_lossy().replace("\\", "/"));
     }
 
-    let mut modded_pack = match init_modded_pack(&load_order) {
+    let mut modded_pack = match init_modded_pack(&game, &load_order) {
         Ok(pack) => pack,
         Err(error) => return error_path(&error.to_string()),
     };

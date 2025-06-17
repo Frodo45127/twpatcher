@@ -140,7 +140,7 @@ pub fn load_order_from_file(load_order_path: &Path, game: &GameInfo, game_path: 
 
             for path in &paths {
                 if !mod_paths.contains(path) && !vanilla_paths.contains(path) && !excluded_movie_paths.contains(path) {
-                    if let Ok(pack) = Pack::read_and_merge(&[path.to_path_buf()], true, false, false) {
+                    if let Ok(pack) = Pack::read_and_merge(&[path.to_path_buf()], game, true, false, false) {
                         if pack.pfh_file_type() == PFHFileType::Movie {
                             mod_paths.push(path.to_path_buf());
                         }
@@ -169,9 +169,9 @@ pub fn init_vanilla_pack(game: &GameInfo, game_path: &Path) -> Result<Pack> {
     Pack::read_and_merge_ca_packs(game, game_path).map_err(From::from)
 }
 
-pub fn init_modded_pack(paths: &[PathBuf]) -> Result<Pack> {
+pub fn init_modded_pack(game: &GameInfo, paths: &[PathBuf]) -> Result<Pack> {
     if !paths.is_empty() {
-        Pack::read_and_merge(paths, true, false, true).map_err(From::from)
+        Pack::read_and_merge(paths, game, true, false, true).map_err(From::from)
     } else {
         Ok(Pack::default())
     }

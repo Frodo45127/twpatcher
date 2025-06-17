@@ -754,7 +754,7 @@ pub fn prepare_universal_rebalancer(game: &GameInfo, reserved_pack: &mut Pack, v
         dec_extra_data.set_schema(Some(schema));
         let dec_extra_data = Some(dec_extra_data);
 
-        let base_pack = Pack::read_and_merge(&[PathBuf::from(base_mod)], true, false, false)?;
+        let base_pack = Pack::read_and_merge(&[PathBuf::from(base_mod)], game, true, false, false)?;
         let mut land_units_base = base_pack.files_by_path(&ContainerPath::Folder("db/land_units_tables/".to_string()), true)
             .into_iter()
             .cloned()
@@ -1252,7 +1252,7 @@ pub fn prepare_universal_rebalancer(game: &GameInfo, reserved_pack: &mut Pack, v
         if !mod_paths.is_empty() {
             let packs_deps = mod_paths.iter()
                 .map(|path| {
-                    let pack = Pack::read_and_merge(&[path.to_path_buf()], true, false, false).unwrap_or_default();
+                    let pack = Pack::read_and_merge(&[path.to_path_buf()], game, true, false, false).unwrap_or_default();
                     (pack.disk_file_name(), pack.dependencies().iter()
                         .filter_map(|(hard, pack)| if *hard {
                             Some(pack.to_string())

@@ -195,6 +195,7 @@ pub fn save_reserved_pack(game: &GameInfo, pack: &mut Pack, mod_paths: &[PathBuf
 
     let mut encode_data = EncodeableExtraData::default();
     encode_data.set_nullify_dates(true);
+    encode_data.set_game_info(Some(&game));
 
     // Set the dependencies to be the entire load order. Fake for older games because it seems to crash for them.
     //

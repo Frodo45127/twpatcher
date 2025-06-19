@@ -277,7 +277,7 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
         let db_path_bak = config_path()?.join(format!("{}/{}{}", DB_FOLDER, game.key(), DB_BAK_EXTENSION));
 
         let exe_path = game.executable_path(game_path).unwrap_or_default();
-        if !db_path_bak.is_file() || exe_path.is_file() && exe_path.metadata()?.created()? > db_path_bak.metadata()?.created()? {
+        if !db_path_bak.is_file() || exe_path.is_file() && exe_path.metadata()?.created()? > db_path_bak.metadata()?.modified()? {
             info!("  - Recreating vanilla db, as either it didn't exist, or the game has been updated.");
 
             // Make sure the database is clean before rebuilding it.
@@ -313,6 +313,7 @@ pub fn prepare_sql_queries(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack,
         // In case we have a pre-existing valid db, we still need to decode in memory the tables.
         // Otherwise, the sql_to_db functions won't work and data will not be moved back to the pack.
         else {
+            info!("  - Found existing SQL database with vanilla data still valid. Using it.");
 
             tables.par_iter_mut()
                 .filter(|(_, is_vanilla)| *is_vanilla)

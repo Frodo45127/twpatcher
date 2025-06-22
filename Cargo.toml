@@ -1,8 +1,8 @@
 [package]
 name = "twpatcher"
 build = "build.rs"
-version = "0.9.9"
-rust-version = "1.67"
+version = "0.9.10"
+rust-version = "1.80"
 edition = "2021"
 description = "A load order patcher for Total War games since Empire: Total War."
 authors = ["Frodo45127 <frodo_gv@hotmail.com>"]

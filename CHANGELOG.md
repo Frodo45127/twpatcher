@@ -6,6 +6,10 @@ and this project doesn't adhere to [Semantic Versioning](https://semver.org/spec
 
 If you're looking for the changes included in the latest beta (against the latest stable version), check the unreleased section.
 
+## [0.9.10]
+### Fixed
+- Fixed vanilla sql database being regenerated more often than it needs to.
+
 ## [0.9.9]
 ### Fixed
 - Fixed error when saving patched pack.

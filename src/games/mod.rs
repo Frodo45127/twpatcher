@@ -598,10 +598,6 @@ pub fn prepare_translations(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack
         }
 
         if !paths.is_empty() {
-            let mut pack_paths = load_order.to_vec();
-
-            // Reversed so we just get the higher priority stuff at the end, overwriting the rest.
-            pack_paths.reverse();
 
             // If we need to merge the localisation.loc file if found to the translations.
             let use_old_multilanguage_logic = matches!(game.key(),
@@ -616,7 +612,7 @@ pub fn prepare_translations(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack
             let mut loc = Loc::new();
             let mut loc_data = vec![];
 
-            for pack_path in &pack_paths {
+            for pack_path in load_order {
                 if let Some(ref pack_name) = pack_path.file_name().map(|name| name.to_string_lossy().to_string()) {
                     let mut translation_found = false;
 

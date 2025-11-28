@@ -21,7 +21,7 @@ use std::path::{PathBuf, Path};
 use common_utils::sql::SQLScript;
 
 use rpfm_extensions::dependencies::Dependencies;
-use rpfm_extensions::optimizer::Optimizable;
+use rpfm_extensions::optimizer::{Optimizable, OptimizerOptions};
 use rpfm_extensions::translator::*;
 
 use rpfm_lib::files::{Container, ContainerPath, DecodeableExtraData, EncodeableExtraData, FileType, loc::Loc, pack::Pack, RFile, RFileDecoded, table::DecodedData};
@@ -612,11 +612,65 @@ pub fn prepare_translations(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack
             let mut loc = Loc::new();
             let mut loc_data = vec![];
 
+            // Preload some data we're going to need in different places of the process.
+            let mut base_english = HashMap::new();
+            let mut base_local_fixes = HashMap::new();
+            let mut vanilla_english_loc = None;
+
+            if let Some(remote_path) = paths.last() {
+                let vanilla_loc_path = remote_path.join(format!("{}/{}", game.key(), VANILLA_LOC_NAME));
+                if let Ok(mut vanilla_loc) = RFile::tsv_import_from_path(&vanilla_loc_path, &None) {
+                    let _ = vanilla_loc.guess_file_type();
+                    if let Ok(RFileDecoded::Loc(vloc)) = vanilla_loc.decoded() {
+
+                        // If we have a fixes file for the vanilla translation, apply it before everything else.
+                        let fixes_loc_path = remote_path.join(format!("{}/{}{}.tsv", game.key(), VANILLA_FIXES_NAME, language));
+                        if let Ok(mut fixes_loc) = RFile::tsv_import_from_path(&fixes_loc_path, &None) {
+                            let _ = fixes_loc.guess_file_type();
+
+                            if let Ok(RFileDecoded::Loc(fixes_loc)) = fixes_loc.decoded() {
+                                base_local_fixes.extend(
+                                    fixes_loc
+                                        .data()
+                                        .iter()
+                                        .map(|x| (x[0].data_to_string().to_string(), x[1].data_to_string().to_string()))
+                                        .collect::<Vec<_>>(),
+                                );
+                            }
+                        }
+
+                        base_english.extend(
+                            vloc.data()
+                                .iter()
+                                .map(|x| (x[0].data_to_string().to_string(), x[1].data_to_string().to_string()))
+                                .collect::<Vec<_>>(),
+                        );
+                    }
+                    vanilla_english_loc = Some(vanilla_loc);
+                }
+            }
+
+            // Workaround: We do not need a whole dependencies for this, just one file with the entire english loc combined.
+            // So we initialize an empty dependencies, the manually insert that loc.
+            let mut dependencies = Dependencies::default();
+            if let Some(ref vloc) = vanilla_english_loc {
+                dependencies.insert_loc_as_vanilla_loc(vloc.clone());
+            }
+
             for pack_path in load_order {
                 if let Some(ref pack_name) = pack_path.file_name().map(|name| name.to_string_lossy().to_string()) {
                     let mut translation_found = false;
 
-                    if let Ok(tr) = PackTranslation::load(&paths, pack_name, game.key(), language) {
+                    // Use new instead of load. This should update the translation on-the-fly.
+                    let mut pack = Pack::read_and_merge(&[pack_path.to_path_buf()], game, true, false, true)?;
+                    {
+                        let mut files = pack.files_by_type_mut(&[FileType::Loc]);
+                        files.par_iter_mut().for_each(|file| {
+                            let _ = file.decode(&None, true, false);
+                        });
+                    }
+
+                    if let Ok(tr) = PackTranslation::new(&paths, &pack, game.key(), &language, &dependencies, &base_english, &base_local_fixes) {
                         for tr in tr.translations().values() {
 
                             // Only add entries for values we actually have translated and up to date.
@@ -645,10 +699,7 @@ pub fn prepare_translations(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack
                         info!("  - Translation found for Pack: {}.", pack_name);
                     }
 
-                    // If there's no translation data, just merge their locs.
                     if !translation_found {
-                        let mut pack = Pack::read_and_merge(&[pack_path.to_path_buf()], game, true, false, true)?;
-
                         let mut locs = pack.files_by_type_mut(&[FileType::Loc]);
 
                         // Some people (SCM Team) decided it was a good idea to put a loc wiping entries outside the text folder.
@@ -692,30 +743,13 @@ pub fn prepare_translations(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack
                     .collect::<HashSet<_>>()
             };
 
-            let mut vanilla_english_loc = None;
-
             // Perform the optimisation BEFORE appending the vanilla loc, if we're appending it. Otherwise we'll lose valid entries.
-            if let Some(remote_path) = paths.last() {
-                let vanilla_loc_path = remote_path.join(format!("{}/{}", game.key(), VANILLA_LOC_NAME));
-                if let Ok(mut vanilla_loc) = RFile::tsv_import_from_path(&vanilla_loc_path, &None) {
-                    vanilla_loc.guess_file_type()?;
-                    vanilla_loc.decode(&None, true, false)?;
+            if !loc_data.is_empty() {
+                loc.set_data(&loc_data)?;
 
-                    // Keep it in memory to reuse it when filling missing translation data.
-                    vanilla_english_loc = Some(vanilla_loc.clone());
-
-                    if !loc_data.is_empty() {
-                        loc.set_data(&loc_data)?;
-
-                        // Workaround: We do not need a whole dependencies for this, just one file with the entire english loc combined.
-                        // So we initialize an empty dependencies, the manually insert that loc.
-                        let mut dependencies = Dependencies::default();
-                        dependencies.insert_loc_as_vanilla_loc(vanilla_loc);
-
-                        let _ = !loc.optimize(&mut dependencies);
-                        loc_data = loc.data().to_vec();
-                    }
-                }
+                let options = OptimizerOptions::default();
+                let _ = !loc.optimize(&mut dependencies, None, &options);
+                loc_data = loc.data().to_vec();
             }
 
             // If the game uses the old multilanguage logic, we need to get the most updated version of localisation.loc from the game and append it to our loc.
@@ -727,7 +761,6 @@ pub fn prepare_translations(cli: &Cli, game: &GameInfo, reserved_pack: &mut Pack
                     }
                 }
             }
-
 
             // If the game is not using the old logic, we need to restore the optimized lines, but from the translated loc, not the english one.
             else {

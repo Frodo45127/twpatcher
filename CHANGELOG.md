@@ -6,6 +6,11 @@ and this project doesn't adhere to [Semantic Versioning](https://semver.org/spec
 
 If you're looking for the changes included in the latest beta (against the latest stable version), check the unreleased section.
 
+## [0.9.11]
+### Fixed
+- Fixed translations not loading properly when they're out of sync with their pack.
+- Fixed translations being applied in the wrong order.
+
 ## [0.9.10]
 ### Fixed
 - Fixed vanilla sql database being regenerated more often than it needs to.
@@ -63,7 +68,9 @@ If you're looking for the changes included in the latest beta (against the lates
 ### Changed
 - Initial Release
 
-[Unreleased]: https://github.com/Frodo45127/twpatcher/compare/v0.9.9...HEAD
+[Unreleased]: https://github.com/Frodo45127/twpatcher/compare/v0.9.11...HEAD
+[0.9.11]: https://github.com/Frodo45127/twpatcher/compare/v0.9.10...v0.9.11
+[0.9.10]: https://github.com/Frodo45127/twpatcher/compare/v0.9.9...v0.9.10
 [0.9.9]: https://github.com/Frodo45127/twpatcher/compare/v0.9.8...v0.9.9
 [0.9.8]: https://github.com/Frodo45127/twpatcher/compare/v0.9.7...v0.9.8
 [0.9.7]: https://github.com/Frodo45127/twpatcher/compare/v0.9.6...v0.9.7
@@ -74,4 +81,3 @@ If you're looking for the changes included in the latest beta (against the lates
 [0.9.2]: https://github.com/Frodo45127/twpatcher/compare/v0.9.1...v0.9.2
 [0.9.1]: https://github.com/Frodo45127/twpatcher/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/Frodo45127/twpatcher/tree/v0.9.0
-
